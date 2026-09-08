@@ -1,0 +1,6 @@
+{
+  "name": "Scholarship & Visa Intelligence Hub - Muhammad Taha",
+  "description": "Automated scholarship matching, visa requirements tracker, humanized SOP/LOR generator, and application manager for MS in AI/CS in Europe, Australia, NZ, and Canada.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
