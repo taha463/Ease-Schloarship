@@ -11,13 +11,12 @@ import {
   Plane,
   Award,
   Users,
-  Users,
   Search,
   Calendar,
   Globe,
   Server,
   Zap,
-  Scale
+  Scale,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -39,7 +38,7 @@ export default function Navbar({
   totalScholarships,
   activeApplicationsCount,
   onOpenProfile,
-  onOpenDeployModal
+  onOpenDeployModal,
 }: NavbarProps) {
   const tabs = [
     { id: "scholarships", label: "Scholarships & Automation", icon: Award },
@@ -51,7 +50,7 @@ export default function Navbar({
     { id: "exam-planner", label: "IELTS & Exams", icon: Calendar },
     { id: "country-compare", label: "Country Matrix", icon: GraduationCap },
     { id: "connect-forum", label: "Connect Student Forum", icon: Users },
-    { id: "reality-check", label: "Ranking & Reality Check", icon: Scale }
+    { id: "reality-check", label: "Ranking & Reality Check", icon: Scale },
   ];
 
   return (
@@ -60,12 +59,14 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {/* Brand & Identity */}
         <div className="flex items-center space-x-3">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-            <rect width="32" height="32" rx="16" fill="#1C1E21" />
-            <path d="M12 10H21M12 16H19M12 22H21" stroke="#FAF8F5" strokeWidth="2" strokeLinecap="round" />
-            <path d="M12 10V22" stroke="#FAF8F5" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="21" cy="16" r="1.5" fill="#C86248" />
-          </svg>
+          <div className="shrink-0 w-8 h-8 relative rounded-full overflow-hidden border border-[#E5E7EB]">
+            <Image
+              src="/logo.jpg"
+              alt="Ease Scholarship Logo"
+              fill
+              className="object-cover"
+            />
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base sm:text-lg font-serif-editorial font-semibold text-[#1A1A1A] tracking-tight flex items-center gap-2">
@@ -76,7 +77,10 @@ export default function Navbar({
               </span>
             </div>
             <p className="text-xs text-[#5C626A] flex items-center gap-1.5 mt-0.5">
-              <span>Candidate: <strong className="text-[#1A1A1A]">{candidateName}</strong></span>
+              <span>
+                Candidate:{" "}
+                <strong className="text-[#1A1A1A]">{candidateName}</strong>
+              </span>
               <span>•</span>
               <span>CGPA {cgpa.toFixed(2)} | SE Graduate</span>
             </p>
@@ -120,7 +124,9 @@ export default function Navbar({
                     : "text-gray-600 hover:text-[#1A1A1A] hover:bg-white"
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-emerald-700" : "text-gray-400"}`} />
+                <Icon
+                  className={`w-4 h-4 ${isActive ? "text-emerald-700" : "text-gray-400"}`}
+                />
                 <span>{tab.label}</span>
               </button>
             );
