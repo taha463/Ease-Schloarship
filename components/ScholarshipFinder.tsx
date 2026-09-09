@@ -27,6 +27,7 @@ interface ScholarshipFinderProps {
   onSelectScholarshipForSop: (scholarship: ScholarshipItem) => void;
   onAddCustomScholarship: (scholarship: ScholarshipItem) => void;
   onOpenAiResearch: () => void;
+  onRefreshLiveScholarships: () => Promise<void>;
 }
 
 export default function ScholarshipFinder({
@@ -35,9 +36,11 @@ export default function ScholarshipFinder({
   candidateNationality,
   onSelectScholarshipForSop,
   onAddCustomScholarship,
-  onOpenAiResearch
+  onOpenAiResearch,
+  onRefreshLiveScholarships
 }: ScholarshipFinderProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<string>("All");
   const [selectedFunding, setSelectedFunding] = useState<string>("All");
   const [selectedMatch, setSelectedMatch] = useState<string>("All");
@@ -110,7 +113,23 @@ export default function ScholarshipFinder({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await onRefreshLiveScholarships();
+              setIsRefreshing(false);
+            }}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+          >
+            {isRefreshing ? (
+               <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+               <Search className="w-4 h-4" />
+            )}
+            <span>{isRefreshing ? "Fetching Internet Data..." : "Refresh Internet Data"}</span>
+          </button>
           <button
             onClick={onOpenAiResearch}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"

@@ -10,7 +10,8 @@ import VisaTracker from "../components/VisaTracker";
 import ExamPlanner from "../components/ExamPlanner";
 import ApplicationTracker from "../components/ApplicationTracker";
 import CountryComparer from "../components/CountryComparer";
-import DebateForum from "../components/DebateForum";
+import ConnectStudentForum from "../components/ConnectStudentForum";
+import RealityCheck from "../components/RealityCheck";
 import ProfessorFinder from "../components/ProfessorFinder";
 import AiDeepResearcher from "../components/AiDeepResearcher";
 
@@ -44,9 +45,9 @@ export default function Home() {
   useEffect(() => {
     const refresh = () => setScholarships((current) => refreshDeadlineCounters(current));
     const timer = window.setInterval(refresh, 60 * 60 * 1000);
-    const refreshLiveScholarships = async () => {
-      try {
-        const response = await fetch("/api/ai/research", {
+  const refreshLiveScholarships = async () => {
+    try {
+      const response = await fetch("/api/ai/research", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -116,6 +117,10 @@ export default function Home() {
       }
     };
 
+  useEffect(() => {
+    const refresh = () => setScholarships((current) => refreshDeadlineCounters(current));
+    const timer = window.setInterval(refresh, 60 * 60 * 1000);
+
     void refreshLiveScholarships();
     const liveTimer = window.setInterval(() => void refreshLiveScholarships(), 4 * 60 * 60 * 1000);
     return () => {
@@ -180,6 +185,7 @@ export default function Home() {
               onSelectScholarshipForSop={handleSelectScholarshipForSop}
               onAddCustomScholarship={handleAddCustomScholarship}
               onOpenAiResearch={() => setActiveTab("ai-research")}
+              onRefreshLiveScholarships={refreshLiveScholarships}
             />
           )}
 
@@ -209,7 +215,9 @@ export default function Home() {
 
           {activeTab === "country-compare" && <CountryComparer />}
 
-          {activeTab === "debate-forum" && <DebateForum />}
+          {activeTab === "connect-forum" && <ConnectStudentForum candidate={candidate} />}
+
+          {activeTab === "reality-check" && <RealityCheck />}
         </div>
       </main>
 

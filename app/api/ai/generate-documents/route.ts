@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
+import { searchWeb, formatSearchContext } from "@/lib/tavily";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,10 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const ai = getGeminiClient();
+
+    // Fetch real-time context about the program, university or scholarship
+    const searchQuery = `${targetUniversity} ${targetProgram} ${scholarshipName} "requirements" "values" "research focus"`;
+    const sources = await searchWeb(searchQuery, 6);
 
     const humanizerInstructions = `
 CRITICAL HUMANIZER & SCHOLARSHIP WINNING GUIDELINES:
@@ -50,6 +55,10 @@ Target Details:
 - Professor Name (if applicable): ${professorName || "Faculty Advisor"}
 - Specific Research Domain: ${researchDomain || "Multi-Agent Systems & Explainable AI"}
 - Additional Instructions: ${customNote || "None"}
+
+To make this highly tailored and non-generic, incorporate specific values, research initiatives, or requirements of the university/scholarship found in these real-time web results:
+Tavily Web Sources:
+${formatSearchContext(sources)}
 
 ${humanizerInstructions}
 

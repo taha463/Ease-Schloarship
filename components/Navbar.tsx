@@ -13,9 +13,7 @@ import {
   Users,
   Search,
   Calendar,
-  Globe,
   Server,
-  Zap,
   Scale,
 } from "lucide-react";
 

@@ -1,22 +1,37 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
+@theme {
+  --color-paper: var(--bg-paper);
+  --color-card: var(--bg-card);
+  --color-stone: var(--bg-stone);
+  --color-border-stone: var(--border-stone);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-forest: var(--accent-forest);
+  --color-accent-forest-light: var(--accent-forest-light);
+  --color-accent-terracotta: var(--accent-terracotta);
+  --color-accent-terracotta-light: var(--accent-terracotta-light);
+  --color-accent-navy: var(--accent-navy);
+}
+
 /* Hallmark · macrostructure: Workbench · tone: editorial · anchor hue: forest-green */
 
 @layer base {
   :root {
-    --bg-paper: #F9FAF8;
-    --bg-card: #FFFFFF;
-    --bg-stone: #F0F2EE;
-    --border-stone: #E5E7EB;
-    --text-primary: #1A1A1A;
-    --text-secondary: #5C626A;
-    --text-muted: #9CA3AF;
-    --accent-forest: #059669;
-    --accent-forest-light: #F0F2EE;
-    --accent-terracotta: #C86248;
-    --accent-terracotta-light: #FAF0EE;
-    --accent-navy: #1E3A8A;
+    --bg-paper: #0F1115;
+    --bg-card: #15181C;
+    --bg-stone: #1C1F24;
+    --border-stone: #2A2E35;
+    --text-primary: #F3F4F6;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --accent-forest: #10B981;
+    --accent-forest-light: #064E3B;
+    --accent-terracotta: #F43F5E;
+    --accent-terracotta-light: #881337;
+    --accent-navy: #3B82F6;
   }
 
   body {
