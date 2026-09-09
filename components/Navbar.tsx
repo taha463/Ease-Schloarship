@@ -52,29 +52,29 @@ export default function Navbar({
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-[#F9FAF8]/95 backdrop-blur-md border-b border-[#E5E7EB]">
+    <header className="sticky top-0 z-40 border-b">
       {/* Top Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
         {/* Brand & Identity */}
         <div className="flex items-center space-x-3">
-          <div className="shrink-0 w-8 h-8 relative rounded-full overflow-hidden border border-[#E5E7EB]">
+          <div className="shrink-0 w-10 h-10 relative">
             <Image
-              src="/logo.jpg"
+              src="/ease-scholarship-mark.svg"
               alt="Ease Scholarship Logo"
               fill
-              className="object-cover"
+              className="object-contain"
             />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-serif-editorial font-semibold text-[#1A1A1A] tracking-tight flex items-center gap-2">
-                Ease Scholarship
+              <h1 className="text-xl sm:text-2xl font-serif-editorial font-semibold text-[#1A1A1A] tracking-tight flex items-center gap-2">
+                Ease
               </h1>
-              <span className="text-[9px] font-mono tracking-widest uppercase px-2 py-0.5 rounded-full bg-[#1C1E21] text-white">
-                EU • ANZ • CA
+              <span className="text-[9px] font-mono tracking-widest uppercase px-2 py-1 rounded-full bg-[#EBF2EE] text-emerald-900 border border-emerald-900/10">
+                Scholarship intelligence
               </span>
             </div>
-            <p className="text-xs text-[#5C626A] flex items-center gap-1.5 mt-0.5">
+            <p className="text-xs text-[#5C626A] flex items-center gap-1.5 mt-1">
               <span>
                 Candidate:{" "}
                 <strong className="text-[#1A1A1A]">{candidateName}</strong>
@@ -90,7 +90,7 @@ export default function Navbar({
           {/* Vercel Deploy Button */}
           <button
             onClick={onOpenDeployModal}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/30 transition-all cursor-pointer shadow-xs"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/30 transition-all cursor-pointer shadow-xs"
           >
             <Server className="w-3.5 h-3.5 text-emerald-400" />
             <span>Deploy to Vercel</span>
@@ -98,7 +98,7 @@ export default function Navbar({
 
           <button
             onClick={onOpenProfile}
-            className="inline-flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#1A1A1A] text-white hover:bg-emerald-600 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-full bg-[#1A1A1A] text-white hover:bg-emerald-600 transition-colors shadow-xs cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
             <span>Profile & CV</span>
@@ -108,7 +108,7 @@ export default function Navbar({
 
       {/* Navigation Tabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-auto no-scrollbar border-t border-[#E5E7EB]/80">
-        <nav className="flex space-x-1 sm:space-x-1.5 py-2">
+        <nav className="flex gap-1 py-3">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

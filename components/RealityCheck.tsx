@@ -9,6 +9,8 @@ interface RealityCheckResult {
   jobAndPrReality: string;
   verdict: string;
   ratingOutOfTen: number;
+  sourceUrls: string[];
+  lastUpdated: string;
 }
 
 export default function RealityCheck() {
@@ -143,6 +145,21 @@ export default function RealityCheck() {
                 {result.jobAndPrReality}
               </p>
             </div>
+            {result.sourceUrls?.length > 0 && (
+              <div className="bg-white rounded-2xl p-5 border border-[#E5E0D8] text-xs text-[#5C626A]">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <strong className="text-[#2D5A43]">Evidence checked</strong>
+                  <span>{result.lastUpdated}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {result.sourceUrls.slice(0, 6).map((url) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[#2D5A43] hover:underline break-all">
+                      {url}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

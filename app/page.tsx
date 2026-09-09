@@ -54,25 +54,59 @@ export default function Home() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState<boolean>(false);
 
-  const refreshLiveScholarships = async () => {
+  const refreshLiveScholarships = async (
+    customCandidate?: CandidateProfile,
+  ) => {
     try {
+      const activeProfile = customCandidate || candidate;
+
+      // Dynamically extract regions from targetPreferences or convenience fields
+      const targetCountries =
+        activeProfile.targetPreferences?.includedRegions?.length > 0
+          ? activeProfile.targetPreferences.includedRegions.join(" ")
+          : activeProfile.targetCountries?.join(" ") ||
+            "Germany Sweden Finland Netherlands Canada Australia New Zealand";
+
+      // Dynamically extract field of study or technical skills
+      const combinedSkills = activeProfile.skills
+        ? [
+            ...(activeProfile.skills.aiMl || []),
+            ...(activeProfile.skills.backend || []),
+            ...(activeProfile.skills.frontend || []),
+          ]
+            .slice(0, 5)
+            .join(", ")
+        : "";
+
+      const researchTopic =
+        activeProfile.targetPreferences?.fieldOfStudy?.length > 0
+          ? activeProfile.targetPreferences.fieldOfStudy.join(", ")
+          : activeProfile.researchInterests ||
+            combinedSkills ||
+            "Artificial Intelligence, Computer Science, Software Engineering";
+
+      const degreeLevel =
+        activeProfile.targetPreferences?.degreeGoal || "Master's (MS)";
+
       const response = await fetch("/api/ai/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          targetCountry:
-            "Germany Sweden Finland Netherlands Canada Australia New Zealand",
-          researchTopic:
-            "Artificial Intelligence, Computer Science, Software Engineering",
-          degreeLevel: "Master's (MS)",
+          targetCountry: targetCountries,
+          researchTopic: researchTopic,
+          degreeLevel: degreeLevel,
+          candidate: activeProfile,
         }),
       });
+
       const result = (await response.json()) as {
         success?: boolean;
         data?: { opportunities?: Array<Record<string, unknown>> };
+        error?: string;
       };
+
       if (!response.ok || !result.success) {
-        throw new Error("Live scholarship refresh failed.");
+        throw new Error(result.error || "Live scholarship refresh failed.");
       }
 
       const liveItems = (result.data?.opportunities || [])
@@ -91,11 +125,14 @@ export default function Home() {
                 : country === "Canada"
                   ? "Canada"
                   : "Europe";
+
           if (
             !deadline ||
             Number.isNaN(new Date(`${deadline}T00:00:00`).getTime())
-          )
+          ) {
             return null;
+          }
+
           return {
             id: `live-${Date.now()}-${index}`,
             title: String(opportunity.title || "Live scholarship opportunity"),
@@ -131,7 +168,7 @@ export default function Home() {
               opportunity.stipendDetails || "Not confirmed",
             ),
             academicRequirements: {
-              minCgpa: 3.2,
+              minCgpa: activeProfile.cgpa || 3.0,
               ieltsMin: 0,
               greRequired: false,
               nationalityEligible: true,
@@ -142,11 +179,14 @@ export default function Home() {
             reminderScheduleDays: [30, 14, 7],
             professorContactNeeded: false,
             officialUrl: String(opportunity.officialPortalLink || ""),
-            studyFields: [
-              "Artificial Intelligence",
-              "Computer Science",
-              "Software Engineering",
-            ],
+            studyFields:
+              activeProfile.targetPreferences?.fieldOfStudy?.length > 0
+                ? activeProfile.targetPreferences.fieldOfStudy
+                : [
+                    "Artificial Intelligence",
+                    "Computer Science",
+                    "Software Engineering",
+                  ],
           };
         })
         .filter((item): item is ScholarshipItem => item !== null);
@@ -174,6 +214,7 @@ export default function Home() {
       () => void refreshLiveScholarships(),
       4 * 60 * 60 * 1000,
     );
+
     return () => {
       clearTimeout(initialFetchTimer);
       window.clearInterval(timer);
@@ -183,10 +224,14 @@ export default function Home() {
 
   const handleUpdateCandidate = (updated: CandidateProfile) => {
     setCandidate(updated);
-    window.localStorage.setItem(
-      "ease-scholarship:candidate",
-      JSON.stringify(updated),
-    );
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "ease-scholarship:candidate",
+        JSON.stringify(updated),
+      );
+    }
+    // Re-run scholarship refresh with the newly entered candidate profile
+    void refreshLiveScholarships(updated);
   };
 
   const [docGenDefaults, setDocGenDefaults] = useState<{
@@ -215,7 +260,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9FAF8] text-[#1A1A1A] font-sans flex flex-col">
+    <div className="ease-app min-h-screen text-[#1A1A1A] font-sans flex flex-col">
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -227,7 +272,7 @@ export default function Home() {
         onOpenDeployModal={() => setIsDeployModalOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div
           key={activeTab}
           className="transition-all duration-300 ease-in-out"
@@ -240,7 +285,9 @@ export default function Home() {
               onSelectScholarshipForSop={handleSelectScholarshipForSop}
               onAddCustomScholarship={handleAddCustomScholarship}
               onOpenAiResearch={() => setActiveTab("ai-research")}
-              onRefreshLiveScholarships={refreshLiveScholarships}
+              onRefreshLiveScholarships={() =>
+                refreshLiveScholarships(candidate)
+              }
             />
           )}
 
@@ -291,19 +338,27 @@ export default function Home() {
         onClose={() => setIsDeployModalOpen(false)}
       />
 
-      <footer className="bg-white border-t border-[#E5E7EB] py-6 mt-12 text-xs text-[#5C626A]">
+      <footer className="border-t py-8 mt-12 text-xs text-[#5C626A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-600"></div>
+            <span className="font-serif-editorial text-lg text-[#1A1A1A]">
+              E
+            </span>
             <span className="font-semibold text-[#1A1A1A]">
               Ease Scholarship
             </span>
             <span>•</span>
-            <span>Tailored for {candidate.name} (HITEC SE &apos;26)</span>
+            <span>
+              Tailored for {candidate.name || "Student"} (
+              {candidate.degree || "B.Sc."}{" "}
+              {candidate.university ? `· ${candidate.university}` : ""})
+            </span>
           </div>
 
           <p className="text-gray-400 text-[11px]">
-            Strict Destination Policy Enforced: Europe, Australia, NZ & Canada.
+            {candidate.targetPreferences?.includedRegions?.length > 0
+              ? `Target Regions: ${candidate.targetPreferences.includedRegions.join(", ")}`
+              : "Strict Destination Policy Enforced: Europe, Australia, NZ & Canada."}
           </p>
         </div>
       </footer>

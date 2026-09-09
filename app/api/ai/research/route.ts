@@ -6,33 +6,53 @@ import { formatSearchContext, searchWeb } from "@/lib/tavily";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { targetCountry, researchTopic, degreeLevel = "Master's (MS)" } = body;
+    const {
+      targetCountry,
+      researchTopic,
+      degreeLevel = "Master's (MS)",
+      candidate,
+    } = body;
+
+    // Fallback profile if none passed in request
+    const userProfile = {
+      name: candidate?.name || "Applicant",
+      nationality: candidate?.location || "International Student",
+      degree: candidate?.degree || "Undergraduate Degree",
+      university: candidate?.university || "Accredited University",
+      cgpa: candidate?.cgpa ?? 3.0,
+      skills: Array.isArray(candidate?.skills)
+        ? candidate.skills.join(", ")
+        : candidate?.skills || researchTopic || "Computer Science",
+      projects: Array.isArray(candidate?.projects)
+        ? candidate.projects.join(", ")
+        : candidate?.projects || "Undergraduate projects",
+      targetCountries:
+        targetCountry ||
+        candidate?.targetCountries?.join(", ") ||
+        "Europe, Australia, Canada, New Zealand",
+    };
 
     const ai = getGeminiClient();
-    const sources = await searchWeb(
-      `${targetCountry || "Europe Australia Canada New Zealand"} current scholarships master's software engineering Pakistani students ${researchTopic || "artificial intelligence"} ${degreeLevel}`,
-      8
-    );
+
+    // Dynamically search based on user profile
+    const searchQuery = `${userProfile.targetCountries} ${degreeLevel} scholarships ${userProfile.degree} ${researchTopic || userProfile.skills} international students deadline`;
+    const sources = await searchWeb(searchQuery, 8);
 
     const prompt = `
 You are an expert academic research advisor and scholarship intelligence agent.
+
 Candidate Profile:
-- Name: Muhammad Taha
-- Nationality: Pakistani Passport Holder
-- Academic Degree: B.Sc. Software Engineering from HITEC University, Taxila
-- CGPA: 3.20 / 4.00
-- Core AI Skills: PyTorch, Multi-Agent Systems, RAG, FastAPI, Docker, Transformers, Causal Cross-Attention, LLM inference.
-- Key Projects: Aegis (AI Flood Prediction with NASA/GEOGloWS), FEHM.AI (Socratic Multi-Agent Learning), Mizan (AI Legal Evidence Reasoning).
-- Strict Allowed Regions: Europe (Germany, Sweden, Finland, Netherlands, France, Italy, Ireland, Austria), Australia, New Zealand, Canada.
-- Strictly EXCLUDED Destinations: USA, UK, Gulf, China, South Asia, Japan.
+- Name: ${userProfile.name}
+- Nationality / Location: ${userProfile.nationality}
+- Background Degree: ${userProfile.degree} from ${userProfile.university}
+- CGPA: ${userProfile.cgpa} / 4.00
+- Core Technical Skills: ${userProfile.skills}
+- Key Projects / Portfolio: ${userProfile.projects}
+- Target Countries / Regions: ${userProfile.targetCountries}
+- Target Degree: ${degreeLevel}
+- Specific Research Interest: ${researchTopic || userProfile.skills}
 
-Search Query:
-Target Region/Country: ${targetCountry || "Europe, Australia, Canada, New Zealand"}
-Focus Research Area: ${researchTopic || "Artificial Intelligence, Multi-Agent Systems, RAG, Software Engineering"}
-Target Degree: ${degreeLevel}
-
-Use the Tavily sources below as your evidence. Find 3 highly specific, real-world scholarship or research assistantship opportunities available for Pakistani software engineers matching CGPA 3.20. Do not invent deadlines, eligibility, professors, or URLs. If a source does not confirm a detail, write "Not confirmed".
-Include professor names/labs where relevant for research thesis pathways.
+Use the Tavily sources below as your primary evidence. Find 3 highly specific, real-world scholarship or research assistantship opportunities that match this applicant's CGPA (${userProfile.cgpa}) and field. Do not invent deadlines, eligibility criteria, or URLs. If a source does not confirm a detail, write "Not confirmed".
 
 Return structured JSON according to the schema provided.
 
@@ -41,10 +61,11 @@ ${formatSearchContext(sources)}
 `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        systemInstruction: "You provide precise, real academic scholarship intelligence for international students from Pakistan. Never hallucinate fake domains or fake deadlines.",
+        systemInstruction:
+          "You provide verified academic scholarship intelligence for international applicants. Never hallucinate fake domains or fake deadlines.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -57,15 +78,26 @@ ${formatSearchContext(sources)}
                   title: { type: Type.STRING },
                   universityOrProvider: { type: Type.STRING },
                   country: { type: Type.STRING },
-                  fundingType: { type: Type.STRING, description: "Fully Funded, Full Tuition Waiver, or Partial Funding" },
-                  matchScore: { type: Type.NUMBER, description: "Match score percentage out of 100" },
-                  matchRating: { type: Type.STRING, description: "Strong Match, Possible Match, or Not Eligible" },
+                  fundingType: {
+                    type: Type.STRING,
+                    description:
+                      "Fully Funded, Full Tuition Waiver, or Partial Funding",
+                  },
+                  matchScore: {
+                    type: Type.NUMBER,
+                    description: "Match score percentage out of 100",
+                  },
+                  matchRating: {
+                    type: Type.STRING,
+                    description:
+                      "Strong Match, Possible Match, or Not Eligible",
+                  },
                   matchReason: { type: Type.STRING },
                   stipendDetails: { type: Type.STRING },
                   estimatedDeadline: { type: Type.STRING },
                   keyRequirements: {
                     type: Type.ARRAY,
-                    items: { type: Type.STRING }
+                    items: { type: Type.STRING },
                   },
                   relevantProfessorsOrLabs: {
                     type: Type.ARRAY,
@@ -75,19 +107,31 @@ ${formatSearchContext(sources)}
                         name: { type: Type.STRING },
                         labName: { type: Type.STRING },
                         email: { type: Type.STRING },
-                        researchDomain: { type: Type.STRING }
-                      }
-                    }
+                        researchDomain: { type: Type.STRING },
+                      },
+                    },
                   },
-                  officialPortalLink: { type: Type.STRING }
+                  officialPortalLink: { type: Type.STRING },
                 },
-                required: ["title", "universityOrProvider", "country", "fundingType", "matchScore", "matchRating", "matchReason", "stipendDetails", "estimatedDeadline", "keyRequirements", "officialPortalLink"]
-              }
-            }
+                required: [
+                  "title",
+                  "universityOrProvider",
+                  "country",
+                  "fundingType",
+                  "matchScore",
+                  "matchRating",
+                  "matchReason",
+                  "stipendDetails",
+                  "estimatedDeadline",
+                  "keyRequirements",
+                  "officialPortalLink",
+                ],
+              },
+            },
           },
-          required: ["opportunities"]
-        }
-      }
+          required: ["opportunities"],
+        },
+      },
     });
 
     const jsonText = response.text || "{}";
@@ -97,8 +141,11 @@ ${formatSearchContext(sources)}
   } catch (error: any) {
     console.error("AI Scholarship Research Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to execute AI research" },
-      { status: 500 }
+      {
+        success: false,
+        error: error.message || "Failed to execute dynamic AI research",
+      },
+      { status: 500 },
     );
   }
 }

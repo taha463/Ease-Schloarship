@@ -1,84 +1,240 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@plugin "@tailwindcss/typography";
+@import "../tokens.css";
+
+/* Hallmark · macrostructure: Marquee Hero · tone: editorial · anchor hue: garden-green */
+/* Hallmark · theme: Garden · nav: N6 · footer: Ft1 · enrichment: none */
 
 @theme {
-  --color-paper: var(--bg-paper);
-  --color-card: var(--bg-card);
-  --color-stone: var(--bg-stone);
-  --color-border-stone: var(--border-stone);
-  --color-text-primary: var(--text-primary);
-  --color-text-secondary: var(--text-secondary);
-  --color-text-muted: var(--text-muted);
-  --color-accent-forest: var(--accent-forest);
-  --color-accent-forest-light: var(--accent-forest-light);
-  --color-accent-terracotta: var(--accent-terracotta);
-  --color-accent-terracotta-light: var(--accent-terracotta-light);
-  --color-accent-navy: var(--accent-navy);
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-body: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-sans: var(--font-body);
+
+  --color-paper: oklch(97% 0.012 92);
+  --color-surface: oklch(99% 0.008 92);
+  --color-ink: oklch(20% 0.025 150);
+  --color-muted: oklch(47% 0.025 150);
+  --color-rule: oklch(86% 0.018 92);
+  --color-accent: oklch(41% 0.105 150);
+  --color-signal: oklch(63% 0.145 48);
+  --color-focus: oklch(58% 0.16 150);
+
+  --radius-card: 0.35rem;
+  --radius-control: 0.2rem;
 }
 
-/* Hallmark · macrostructure: Workbench · tone: editorial · anchor hue: forest-green */
+:root {
+  --bg-paper: oklch(97% 0.012 92);
+  --bg-card: oklch(99% 0.008 92);
+  --bg-stone: oklch(94% 0.018 92);
+  --border-stone: oklch(86% 0.018 92);
+  --text-primary: oklch(20% 0.025 150);
+  --text-secondary: oklch(47% 0.025 150);
+  --text-muted: oklch(60% 0.018 150);
+  --accent-forest: oklch(41% 0.105 150);
+  --accent-forest-light: oklch(91% 0.04 150);
+  --accent-terracotta: oklch(63% 0.145 48);
+  --accent-terracotta-light: oklch(94% 0.035 48);
+  --accent-navy: oklch(38% 0.08 250);
 
-@layer base {
-  :root {
-    --bg-paper: #0F1115;
-    --bg-card: #15181C;
-    --bg-stone: #1C1F24;
-    --border-stone: #2A2E35;
-    --text-primary: #F3F4F6;
-    --text-secondary: #9CA3AF;
-    --text-muted: #6B7280;
-    --accent-forest: #10B981;
-    --accent-forest-light: #064E3B;
-    --accent-terracotta: #F43F5E;
-    --accent-terracotta-light: #881337;
-    --accent-navy: #3B82F6;
-  }
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-  body {
-    background-color: var(--bg-paper);
-    color: var(--text-primary);
-    font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  background: var(--bg-paper);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .font-serif-editorial {
-  font-family: 'DM Serif Display', Georgia, Cambria, 'Times New Roman', Times, serif;
+  font-family: var(--font-display);
+  font-style: normal;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.ease-app {
+  background: var(--bg-paper);
 }
 
-::-webkit-scrollbar-track {
-  background: #F9FAF8;
+.ease-app .bg-white {
+  background-color: var(--bg-card);
+  box-shadow: inset 0 0 0 1px var(--border-stone);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #E5E7EB;
-  border-radius: 9999px;
+.ease-app .hairline-border,
+.ease-app [class*="border-[#E5"],
+.ease-app [class*="border-[#E5E0D8"] {
+  border-color: var(--border-stone);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #D1D5DB;
+.ease-app .editorial-shadow {
+  box-shadow: none;
 }
 
-.hairline-border {
-  border: 1px solid #E5E7EB;
+.ease-app .editorial-shadow-hover {
+  transition:
+    transform 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
 }
 
-/* Subtle print/editorial shadow */
-.editorial-shadow {
-  box-shadow: 0 2px 12px -2px rgba(28, 30, 33, 0.04), 0 1px 3px rgba(28, 30, 33, 0.02);
-}
-
-.editorial-shadow-hover {
-  transition: all 0.25s ease;
-}
-
-.editorial-shadow-hover:hover {
-  box-shadow: 0 10px 25px -5px rgba(28, 30, 33, 0.08), 0 4px 10px -2px rgba(28, 30, 33, 0.03);
+.ease-app .editorial-shadow-hover:hover {
+  box-shadow: none;
   transform: translateY(-1px);
+}
+
+.ease-app header {
+  background: oklch(97% 0.012 92 / 0.94);
+  border-color: var(--border-stone);
+  backdrop-filter: blur(14px);
+}
+
+.ease-app footer {
+  background: transparent;
+  border-color: var(--border-stone);
+}
+
+.ease-app main {
+  max-width: 90rem;
+}
+
+.ease-app h1,
+.ease-app h2,
+.ease-app h3,
+.ease-app h4 {
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+.ease-app h1 {
+  font-size: clamp(2.25rem, 5vw, 4.75rem);
+  line-height: 0.98;
+  max-width: 12ch;
+}
+
+.ease-app .rounded-2xl,
+.ease-app .rounded-xl,
+.ease-app .rounded-lg {
+  border-radius: var(--radius-card);
+}
+
+.ease-app .rounded-full {
+  border-radius: 999px;
+}
+
+.ease-app button {
+  border-radius: var(--radius-control);
+}
+
+.ease-app header nav button {
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+  padding-inline: 0.75rem;
+}
+
+.ease-app header nav button:hover,
+.ease-app header nav button:focus-visible {
+  background: transparent;
+  border-bottom-color: var(--accent-forest);
+}
+
+.ease-app header nav button[class*="bg-[#F0F2EE]"] {
+  background: transparent;
+  color: var(--accent-forest);
+  border-bottom-color: var(--accent-forest);
+  box-shadow: none;
+}
+
+.ease-app header nav svg {
+  display: none;
+}
+
+.ease-app [class*="bg-[#FAF8F5]"],
+.ease-app [class*="bg-[#F9FAF8]"] {
+  background: var(--bg-stone);
+}
+
+.ease-app [class*="bg-[#EBF2EE]"] {
+  background: var(--accent-forest-light);
+}
+
+.ease-app [class*="bg-[#FAF0EE]"] {
+  background: var(--accent-terracotta-light);
+}
+
+.ease-app [class*="bg-[#2D5A43]"],
+.ease-app [class*="bg-emerald-600"] {
+  background: var(--accent-forest);
+}
+
+.ease-app [class*="text-[#1C1E21]"],
+.ease-app [class*="text-[#1A1A1A]"] {
+  color: var(--text-primary);
+}
+
+.ease-app [class*="text-[#5C626A]"] {
+  color: var(--text-secondary);
+}
+
+.ease-app [class*="border-[#E5E7EB]"],
+.ease-app [class*="border-[#E5E0D8]"] {
+  border-color: var(--border-stone);
+}
+
+.ease-app .space-y-6 > :first-child {
+  border-top: 1px solid var(--border-stone);
+}
+
+.ease-app input,
+.ease-app select,
+.ease-app textarea {
+  border-radius: var(--radius-control);
+  border-color: var(--border-stone);
+  background: var(--bg-card);
+}
+
+@media (max-width: 767px) {
+  .ease-app h1 {
+    font-size: clamp(2rem, 12vw, 3.25rem);
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

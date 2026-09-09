@@ -20,7 +20,7 @@ The student is analyzing a potential path:
 - Country: ${country}
 - Field: ${fieldOfStudy}
 
-Using ONLY facts from the provided internet sources, give a "Reality Check".
+Using ONLY facts from the provided internet sources, give a "Reality Check". Do not invent rankings, comments, salaries, deadlines, or policy details. Include the source URLs used and the current UTC timestamp.
 Address the following:
 1. University vs. Scholarship Ranking: Is the university actually good, or is it just a weak university offering a strong scholarship to attract international students? How is it perceived locally vs globally?
 2. Life after study & PR: What is the brutal truth about getting a job in ${fieldOfStudy} in ${country} right now? What is the actual reality of getting PR (Permanent Residency) and citizenship? Don't sugarcoat it.
@@ -41,9 +41,14 @@ ${formatSearchContext(sources)}
             rankingTruth: { type: Type.STRING },
             jobAndPrReality: { type: Type.STRING },
             verdict: { type: Type.STRING },
-            ratingOutOfTen: { type: Type.NUMBER }
+            ratingOutOfTen: { type: Type.NUMBER },
+            sourceUrls: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            lastUpdated: { type: Type.STRING }
           },
-          required: ["rankingTruth", "jobAndPrReality", "verdict", "ratingOutOfTen"]
+          required: ["rankingTruth", "jobAndPrReality", "verdict", "ratingOutOfTen", "sourceUrls", "lastUpdated"]
         }
       }
     });

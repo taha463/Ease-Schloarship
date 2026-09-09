@@ -12,6 +12,9 @@ export interface CountryVisaInfo {
   keyStepsPakistani: string[];
   visaSuccessRatePakistan: string;
   importantWarnings: string[];
+  sourceUrls?: string[];
+  lastUpdated?: string;
+  dataStatus?: "live" | "fallback";
 }
 
 export const countryVisaDatabase: Record<string, CountryVisaInfo> = {

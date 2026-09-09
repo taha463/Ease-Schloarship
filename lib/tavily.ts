@@ -1,5 +1,3 @@
-export const TAVILY_API_KEY = "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";
-
 export interface TavilySearchResponse {
   answer?: string;
   query: string;
@@ -14,18 +12,24 @@ export interface TavilySearchResponse {
 }
 
 export async function searchTavily(query: string, searchDepth: "basic" | "advanced" = "basic"): Promise<TavilySearchResponse> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    throw new Error("TAVILY_API_KEY environment variable is missing.");
+  }
+
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      api_key: TAVILY_API_KEY,
+      api_key: apiKey,
       query,
       search_depth: searchDepth,
       include_answer: true,
       max_results: 5
-    })
+    }),
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -36,18 +40,24 @@ export async function searchTavily(query: string, searchDepth: "basic" | "advanc
 }
 
 export async function searchWeb(query: string, maxResults: number = 5): Promise<TavilySearchResponse["results"]> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    throw new Error("TAVILY_API_KEY environment variable is missing.");
+  }
+
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      api_key: TAVILY_API_KEY,
+      api_key: apiKey,
       query,
       search_depth: "basic",
       max_results: maxResults,
       include_answer: false
-    })
+    }),
+    cache: "no-store",
   });
 
   if (!response.ok) {

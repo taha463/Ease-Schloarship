@@ -9,6 +9,9 @@ export interface CountryComparisonMetric {
   aiTechJobMarketScore: number; // 1-100
   partTimeWorkHoursWeek: number;
   keyTechHubs: string[];
+  sourceUrls?: string[];
+  lastUpdated?: string;
+  dataStatus?: "live" | "fallback";
 }
 
 export const countryComparisonData: CountryComparisonMetric[] = [

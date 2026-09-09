@@ -38,7 +38,11 @@ export default function CountryComparer() {
         // preserve flags which might be lost by AI
         const enrichedData = result.data.map((d: any) => {
           const fallback = countryComparisonData.find(c => c.country.toLowerCase() === d.country.toLowerCase());
-          return { ...d, flag: fallback ? fallback.flag : d.flag };
+          return {
+            ...d,
+            flag: fallback ? fallback.flag : d.flag,
+            dataStatus: "live" as const,
+          };
         });
         setMetricsData(enrichedData);
       }
@@ -64,7 +68,7 @@ export default function CountryComparer() {
             Destination Comparison & Career Forecast
           </h1>
           <p className="text-xs sm:text-sm text-[#5C626A] mt-1 max-w-2xl leading-relaxed">
-            Compares tuition fee waivers, monthly living costs, post-study work permits (18-36 months), PR pathway accessibility, and AI/Software tech hub density.
+            Compare current costs, work rights, settlement routes, and technology hubs with the sources used for each refresh.
           </p>
           <button 
             onClick={fetchLiveData} 
@@ -107,6 +111,18 @@ export default function CountryComparer() {
             AI Job Market
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 text-xs text-[#5C626A]">
+        <span className="inline-flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${metricsData[0]?.dataStatus === "live" ? "bg-[#2D5A43]" : "bg-[#C86248]"}`} />
+          {metricsData[0]?.dataStatus === "live"
+            ? `Live source set · updated ${metricsData[0].lastUpdated || "just now"}`
+            : "Reference data · refresh to check current sources"}
+        </span>
+        {metricsData[0]?.sourceUrls?.length ? (
+          <span>{metricsData[0].sourceUrls.length} sources per country</span>
+        ) : null}
       </div>
 
       {/* Chart Canvas */}

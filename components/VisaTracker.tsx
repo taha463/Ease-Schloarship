@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Plane,
   ShieldCheck,
@@ -21,11 +21,42 @@ import { countryVisaDatabase, CountryVisaInfo } from "@/lib/visa-data";
 export default function VisaTracker() {
   const [selectedCountryKey, setSelectedCountryKey] = useState<string>("Germany");
   const [isAiChecking, setIsAiChecking] = useState(false);
-  const [aiVisaData, setAiVisaData] = useState<any>(null);
+  const [aiVisaData, setAiVisaData] = useState<{
+    financialProofRequired: string;
+    blockedAccountProvider?: string;
+    appointmentWaitTimePakistan: string;
+    postStudyWorkPermitMonths: number;
+    prPathwayDetails: string;
+    partTimeWorkRule: string;
+    refusalPreventionTips: string[];
+    stepByStepChecklist: string[];
+    overallSuccessRating: string;
+    sourceUrls: string[];
+    lastUpdated: string;
+  } | null>(null);
 
-  const currentInfo: CountryVisaInfo = countryVisaDatabase[selectedCountryKey] || countryVisaDatabase["Germany"];
+  const fallbackInfo =
+    countryVisaDatabase[selectedCountryKey] || countryVisaDatabase["Germany"];
+  const currentInfo: CountryVisaInfo = aiVisaData
+    ? {
+        ...fallbackInfo,
+        financialProofRequired: aiVisaData.financialProofRequired,
+        blockedAccountDetails: aiVisaData.blockedAccountProvider,
+        pakistanWaitTime: aiVisaData.appointmentWaitTimePakistan,
+        postStudyWorkPermit:
+          aiVisaData.postStudyWorkPermitMonths > 0
+            ? `${aiVisaData.postStudyWorkPermitMonths} months; ${aiVisaData.prPathwayDetails}`
+            : aiVisaData.prPathwayDetails,
+        partTimeWorkAllowance: aiVisaData.partTimeWorkRule,
+        keyStepsPakistani: aiVisaData.stepByStepChecklist,
+        importantWarnings: aiVisaData.refusalPreventionTips,
+        sourceUrls: aiVisaData.sourceUrls,
+        lastUpdated: aiVisaData.lastUpdated,
+        dataStatus: "live",
+      }
+    : { ...fallbackInfo, dataStatus: "fallback" };
 
-  const handleRunAiVisaCheck = async () => {
+  const handleRunAiVisaCheck = useCallback(async () => {
     setIsAiChecking(true);
     setAiVisaData(null);
     try {
@@ -34,16 +65,29 @@ export default function VisaTracker() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ country: selectedCountryKey })
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        success?: boolean;
+        data?: typeof aiVisaData;
+        error?: string;
+      };
       if (data.success && data.data) {
         setAiVisaData(data.data);
+      } else if (!res.ok) {
+        throw new Error(data.error || "Live visa policy lookup failed.");
       }
     } catch (err) {
       console.error(err);
     } finally {
       setIsAiChecking(false);
     }
-  };
+  }, [selectedCountryKey]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void handleRunAiVisaCheck();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [handleRunAiVisaCheck]);
 
   return (
     <div className="space-y-6">
@@ -74,8 +118,20 @@ export default function VisaTracker() {
           ) : (
             <Sparkles className="w-4 h-4 text-amber-300" />
           )}
-          <span>Live AI Visa Policy Audit ({selectedCountryKey})</span>
+          <span>{isAiChecking ? "Checking current policy..." : "Refresh live policy"}</span>
         </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 text-xs text-[#5C626A]">
+        <span className="inline-flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${currentInfo.dataStatus === "live" ? "bg-[#2D5A43]" : "bg-[#C86248]"}`} />
+          {currentInfo.dataStatus === "live"
+            ? `Tavily-sourced · updated ${currentInfo.lastUpdated || "just now"}`
+            : "Showing fallback reference data while live sources load"}
+        </span>
+        {currentInfo.sourceUrls?.length ? (
+          <span>{currentInfo.sourceUrls.length} official sources checked</span>
+        ) : null}
       </div>
 
       {/* Country Selector Tabs */}
@@ -213,9 +269,9 @@ export default function VisaTracker() {
             <div className="bg-white p-5 rounded-2xl hairline-border editorial-shadow space-y-3 border-l-4 border-l-[#2D5A43]">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#2D5A43] flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> AI Live Visa Audit Result
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Live policy evidence
                 </span>
-                <span className="text-[10px] text-stone-400">Refreshed</span>
+                <span className="text-[10px] text-stone-400">{aiVisaData.lastUpdated}</span>
               </div>
 
               <div className="text-xs space-y-2 text-[#1C1E21]">
@@ -229,6 +285,20 @@ export default function VisaTracker() {
                     ))}
                   </ul>
                 </div>
+                {aiVisaData.sourceUrls.length > 0 && (
+                  <div className="pt-2 border-t border-[#E5E0D8]">
+                    <strong className="block text-[#2D5A43] mb-1">Sources checked:</strong>
+                    <ul className="space-y-1">
+                      {aiVisaData.sourceUrls.slice(0, 4).map((url) => (
+                        <li key={url}>
+                          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#2D5A43] hover:underline break-all">
+                            <ExternalLink className="w-3 h-3 shrink-0" /> {url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           )}

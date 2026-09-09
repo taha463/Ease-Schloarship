@@ -27,7 +27,8 @@ For each country, determine:
 7. partTimeWorkHoursWeek (Allowed part-time work hours per week)
 8. keyTechHubs (Array of 3-4 top tech hub cities)
 
-Use realistic estimates if exact numbers are missing, but rely on the provided search context.
+Use only figures supported by the provided search context. If an exact figure is not available, return 0 for numeric fields rather than inventing an estimate.
+Include the source URLs used for each country and the current UTC timestamp.
 
 Tavily Sources:
 ${formatSearchContext(sources)}
@@ -55,12 +56,17 @@ ${formatSearchContext(sources)}
               keyTechHubs: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING }
-              }
+              },
+              sourceUrls: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              lastUpdated: { type: Type.STRING }
             },
             required: [
               "country", "flag", "avgTuitionFeeUsdYear", "avgLivingCostUsdYear",
               "tuitionWaiverAvailabilityScore", "postStudyWorkPermitMonths",
-              "prPathwayScore", "aiTechJobMarketScore", "partTimeWorkHoursWeek", "keyTechHubs"
+              "prPathwayScore", "aiTechJobMarketScore", "partTimeWorkHoursWeek", "keyTechHubs", "sourceUrls", "lastUpdated"
             ]
           }
         }
