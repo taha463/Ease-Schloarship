@@ -35,6 +35,7 @@ export default function Home() {
       setIsHydrated(true);
     }
   }, []);
+
   const [scholarships, setScholarships] = useState<ScholarshipItem[]>(() =>
     refreshDeadlineCounters(initialScholarships)
   );
@@ -42,80 +43,77 @@ export default function Home() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState<boolean>(false);
 
-  useEffect(() => {
-    const refresh = () => setScholarships((current) => refreshDeadlineCounters(current));
-    const timer = window.setInterval(refresh, 60 * 60 * 1000);
   const refreshLiveScholarships = async () => {
     try {
       const response = await fetch("/api/ai/research", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            targetCountry: "Germany Sweden Finland Netherlands Canada Australia New Zealand",
-            researchTopic: "Artificial Intelligence, Computer Science, Software Engineering",
-            degreeLevel: "Master's (MS)"
-          })
-        });
-        const result = (await response.json()) as {
-          success?: boolean;
-          data?: { opportunities?: Array<Record<string, unknown>> };
-        };
-        if (!response.ok || !result.success) {
-          throw new Error("Live scholarship refresh failed.");
-        }
-
-        const liveItems = (result.data?.opportunities || [])
-          .map((opportunity, index): ScholarshipItem | null => {
-            const deadline = typeof opportunity.estimatedDeadline === "string"
-              ? opportunity.estimatedDeadline.match(/\d{4}-\d{2}-\d{2}/)?.[0]
-              : undefined;
-            const country = typeof opportunity.country === "string" ? opportunity.country : "";
-            const region: ScholarshipItem["region"] =
-              country === "Australia" ? "Australia" :
-              country === "New Zealand" ? "New Zealand" :
-              country === "Canada" ? "Canada" : "Europe";
-            if (!deadline || Number.isNaN(new Date(`${deadline}T00:00:00`).getTime())) return null;
-            return {
-              id: `live-${Date.now()}-${index}`,
-              title: String(opportunity.title || "Live scholarship opportunity"),
-              provider: String(opportunity.universityOrProvider || "Provider not confirmed"),
-              country,
-              region,
-              fundingType: (["Fully Funded", "Full Tuition Waiver", "Partial Funding"].includes(String(opportunity.fundingType))
-                ? String(opportunity.fundingType)
-                : "Partial Funding") as ScholarshipItem["fundingType"],
-              matchRating: (["Strong Match", "Possible Match", "Not Eligible"].includes(String(opportunity.matchRating))
-                ? String(opportunity.matchRating)
-                : "Possible Match") as ScholarshipItem["matchRating"],
-              matchScore: Number(opportunity.matchScore) || 0,
-              matchReason: String(opportunity.matchReason || "Review the official source before applying."),
-              admissionSequence: "Direct Scholarship Portal" as const,
-              openingDate: new Date().toISOString().slice(0, 10),
-              deadline,
-              daysRemaining: 0,
-              stipendBenefits: String(opportunity.stipendDetails || "Not confirmed"),
-              academicRequirements: {
-                minCgpa: 3.2,
-                ieltsMin: 0,
-                greRequired: false,
-                nationalityEligible: true
-              },
-              requiredDocuments: Array.isArray(opportunity.keyRequirements) ? opportunity.keyRequirements.map(String) : [],
-              reminderScheduleDays: [30, 14, 7],
-              professorContactNeeded: false,
-              officialUrl: String(opportunity.officialPortalLink || ""),
-              studyFields: ["Artificial Intelligence", "Computer Science", "Software Engineering"]
-            };
-          })
-          .filter((item): item is ScholarshipItem => item !== null);
-
-        if (liveItems.length > 0) {
-          setScholarships((current) => refreshDeadlineCounters([...liveItems, ...current]));
-        }
-      } catch (error) {
-        console.error("Live scholarship refresh failed:", error);
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetCountry: "Germany Sweden Finland Netherlands Canada Australia New Zealand",
+          researchTopic: "Artificial Intelligence, Computer Science, Software Engineering",
+          degreeLevel: "Master's (MS)"
+        })
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        data?: { opportunities?: Array<Record<string, unknown>> };
+      };
+      if (!response.ok || !result.success) {
+        throw new Error("Live scholarship refresh failed.");
       }
-    };
+
+      const liveItems = (result.data?.opportunities || [])
+        .map((opportunity, index): ScholarshipItem | null => {
+          const deadline = typeof opportunity.estimatedDeadline === "string"
+            ? opportunity.estimatedDeadline.match(/\d{4}-\d{2}-\d{2}/)?.[0]
+            : undefined;
+          const country = typeof opportunity.country === "string" ? opportunity.country : "";
+          const region: ScholarshipItem["region"] =
+            country === "Australia" ? "Australia" :
+            country === "New Zealand" ? "New Zealand" :
+            country === "Canada" ? "Canada" : "Europe";
+          if (!deadline || Number.isNaN(new Date(`${deadline}T00:00:00`).getTime())) return null;
+          return {
+            id: `live-${Date.now()}-${index}`,
+            title: String(opportunity.title || "Live scholarship opportunity"),
+            provider: String(opportunity.universityOrProvider || "Provider not confirmed"),
+            country,
+            region,
+            fundingType: (["Fully Funded", "Full Tuition Waiver", "Partial Funding"].includes(String(opportunity.fundingType))
+              ? String(opportunity.fundingType)
+              : "Partial Funding") as ScholarshipItem["fundingType"],
+            matchRating: (["Strong Match", "Possible Match", "Not Eligible"].includes(String(opportunity.matchRating))
+              ? String(opportunity.matchRating)
+              : "Possible Match") as ScholarshipItem["matchRating"],
+            matchScore: Number(opportunity.matchScore) || 0,
+            matchReason: String(opportunity.matchReason || "Review the official source before applying."),
+            admissionSequence: "Direct Scholarship Portal" as const,
+            openingDate: new Date().toISOString().slice(0, 10),
+            deadline,
+            daysRemaining: 0,
+            stipendBenefits: String(opportunity.stipendDetails || "Not confirmed"),
+            academicRequirements: {
+              minCgpa: 3.2,
+              ieltsMin: 0,
+              greRequired: false,
+              nationalityEligible: true
+            },
+            requiredDocuments: Array.isArray(opportunity.keyRequirements) ? opportunity.keyRequirements.map(String) : [],
+            reminderScheduleDays: [30, 14, 7],
+            professorContactNeeded: false,
+            officialUrl: String(opportunity.officialPortalLink || ""),
+            studyFields: ["Artificial Intelligence", "Computer Science", "Software Engineering"]
+          };
+        })
+        .filter((item): item is ScholarshipItem => item !== null);
+
+      if (liveItems.length > 0) {
+        setScholarships((current) => refreshDeadlineCounters([...liveItems, ...current]));
+      }
+    } catch (error) {
+      console.error("Live scholarship refresh failed:", error);
+    }
+  };
 
   useEffect(() => {
     const refresh = () => setScholarships((current) => refreshDeadlineCounters(current));
@@ -134,7 +132,6 @@ export default function Home() {
     window.localStorage.setItem("ease-scholarship:candidate", JSON.stringify(updated));
   };
 
-  // Selected scholarship for document generation
   const [docGenDefaults, setDocGenDefaults] = useState<{
     university?: string;
     scholarship?: string;
