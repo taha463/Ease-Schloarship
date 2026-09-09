@@ -73,7 +73,7 @@ export const defaultCandidate: CandidateProfile = {
   degree: "B.Sc. Software Engineering",
   university: "HITEC University, Taxila",
   gradDate: "Sep 2022 – Jul 2026",
-  cgpa: 3.2,
+  cgpa: 3.23,
   maxCgpa: 4.0,
   location: "Gujranwala, Pakistan",
   phone: "+92 306 8074624",
