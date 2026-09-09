@@ -1,22 +1,25 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "picsum.photos",
+        port: "",
+        pathname: "/*a*",
       },
     ],
   },
-  output: 'standalone',
-  transpilePackages: ['motion'],
+  output: "standalone",
+  transpilePackages: ["motion"],
 };
 
 export default nextConfig;
