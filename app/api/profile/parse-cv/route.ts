@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqClient } from "@/lib/groq";
+import { extractText } from "unpdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,25 +24,8 @@ export async function POST(req: NextRequest) {
       file.name.toLowerCase().endsWith(".pdf")
     ) {
       const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      // Cast as any to bypass TypeScript module type resolution
-      const pdfModule: any = await import("pdf-parse");
-
-      if (typeof pdfModule === "function") {
-        const pdfData = await pdfModule(buffer);
-        extractedText = pdfData.text || "";
-      } else if (typeof pdfModule.default === "function") {
-        const pdfData = await pdfModule.default(buffer);
-        extractedText = pdfData.text || "";
-      } else if (pdfModule.PDFParse) {
-        const parser = new pdfModule.PDFParse({ data: buffer });
-        const pdfData = await parser.getText();
-        extractedText = pdfData.text || "";
-        if (typeof parser.destroy === "function") {
-          await parser.destroy();
-        }
-      }
+      const { text } = await extractText(arrayBuffer);
+      extractedText = Array.isArray(text) ? text.join("\n") : text || "";
     } else {
       extractedText = await file.text();
     }
@@ -51,13 +35,13 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error:
-            "Could not extract readable text from document. Ensure it is not a scanned image.",
+            "Could not extract readable text from document. Ensure it is not an image-only scan.",
         },
         { status: 422 },
       );
     }
 
-    // Extract candidate details with Groq
+    // Extract structured candidate details with Groq
     const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
       model: "openai/gpt-oss-120b",
