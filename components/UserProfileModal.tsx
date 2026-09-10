@@ -51,6 +51,17 @@ export default function UserProfileModal({
         body: formData,
       });
 
+      const contentType = res.headers.get("content-type") || "";
+
+      // Handle HTML error pages safely without triggering JSON parsing syntax errors
+      if (!contentType.includes("application/json")) {
+        const textError = await res.text();
+        console.error("Server returned non-JSON response:", textError);
+        throw new Error(
+          `Server error (${res.status}). Check server terminal logs for details.`,
+        );
+      }
+
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to parse CV");
@@ -63,8 +74,8 @@ export default function UserProfileModal({
         degree: d.degree || prev.degree,
         university: d.university || prev.university,
         graduationDate: d.graduationDate || prev.graduationDate,
-        cgpa: d.cgpa || prev.cgpa,
-        maxCgpa: d.maxCgpa || prev.maxCgpa,
+        cgpa: typeof d.cgpa === "number" ? d.cgpa : prev.cgpa,
+        maxCgpa: typeof d.maxCgpa === "number" ? d.maxCgpa : prev.maxCgpa,
         location: d.location || prev.location,
         fieldOfStudy: d.targetPreferences?.fieldOfStudy || prev.fieldOfStudy,
         targetCountries:
@@ -76,6 +87,8 @@ export default function UserProfileModal({
       setParseError(err.message || "Failed to process resume");
     } finally {
       setIsParsing(false);
+      // Reset input value so uploading the same file again triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -119,7 +132,7 @@ export default function UserProfileModal({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isParsing}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 transition disabled:opacity-50 cursor-pointer"
           >
             {isParsing ? "Analyzing CV with AI..." : "Upload CV / Resume (PDF)"}
           </button>
@@ -238,13 +251,13 @@ export default function UserProfileModal({
         <div className="mt-6 flex justify-end gap-3 border-t border-zinc-800 pt-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition"
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition"
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 transition cursor-pointer"
           >
             Save Profile
           </button>
