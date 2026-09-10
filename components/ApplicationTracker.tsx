@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Bookmark,
   CheckCircle2,
@@ -8,24 +8,23 @@ import {
   AlertTriangle,
   Plus,
   Trash2,
+  Calendar,
+  MapPin,
   FileText,
-  DollarSign,
-  Building,
   Sparkles,
-  ExternalLink
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/app/context/ProfileContext";
 
 export interface ApplicationRecord {
   id: string;
-  universityOrScholarship: string;
-  type: "University Admission" | "Scholarship Grant";
+  scholarship_name: string;
+  university_provider: string;
   country: string;
-  program: string;
-  deadline: string;
+  deadline: string | null;
   status: "Preparing" | "Applied" | "Result Awaited" | "Accepted" | "Rejected";
-  applicationFee: string;
-  feeWaiverAvailable: boolean;
-  documents: {
+  notes?: string;
+  documents?: {
     transcriptsAttested: boolean;
     sopCompleted: boolean;
     lorsObtained: boolean;
@@ -34,143 +33,239 @@ export interface ApplicationRecord {
   };
 }
 
-export const initialApplications: ApplicationRecord[] = [
-  {
-    id: "app-tum-germany",
-    universityOrScholarship: "Technical University of Munich (TUM)",
-    type: "University Admission",
-    country: "Germany",
-    program: "M.Sc. Robotics, Cognition, Intelligence",
-    deadline: "2026-11-30",
-    status: "Preparing",
-    applicationFee: "€75 (uni-assist)",
-    feeWaiverAvailable: false,
-    documents: {
-      transcriptsAttested: true,
-      sopCompleted: true,
-      lorsObtained: true,
-      ieltsUploaded: true,
-      financialProofReady: false
-    }
-  },
-  {
-    id: "app-daad-epos",
-    universityOrScholarship: "DAAD EPOS Germany Fully Funded Scholarship",
-    type: "Scholarship Grant",
-    country: "Germany",
-    program: "DAAD EPOS Tech Master's",
-    deadline: "2026-10-15",
-    status: "Preparing",
-    applicationFee: "0€ (Free)",
-    feeWaiverAvailable: true,
-    documents: {
-      transcriptsAttested: true,
-      sopCompleted: true,
-      lorsObtained: false,
-      ieltsUploaded: true,
-      financialProofReady: true
-    }
-  },
-  {
-    id: "app-kth-sweden",
-    universityOrScholarship: "KTH Royal Institute of Technology",
-    type: "University Admission",
-    country: "Sweden",
-    program: "M.Sc. Software Engineering of Distributed Systems",
-    deadline: "2027-01-15",
-    status: "Preparing",
-    applicationFee: "SEK 900 (University Admissions Sweden)",
-    feeWaiverAvailable: false,
-    documents: {
-      transcriptsAttested: true,
-      sopCompleted: false,
-      lorsObtained: true,
-      ieltsUploaded: true,
-      financialProofReady: true
-    }
-  },
-  {
-    id: "app-si-scholarship",
-    universityOrScholarship: "Swedish Institute SISGP Scholarship",
-    type: "Scholarship Grant",
-    country: "Sweden",
-    program: "SI Master's Full Funding",
-    deadline: "2027-02-15",
-    status: "Preparing",
-    applicationFee: "0€ (Free)",
-    feeWaiverAvailable: true,
-    documents: {
-      transcriptsAttested: true,
-      sopCompleted: false,
-      lorsObtained: false,
-      ieltsUploaded: true,
-      financialProofReady: true
-    }
-  }
-];
-
 export default function ApplicationTracker() {
-  const [apps, setApps] = useState<ApplicationRecord[]>(initialApplications);
+  const { profile } = useProfile();
+  const [apps, setApps] = useState<ApplicationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Form State
   const [newUni, setNewUni] = useState("");
-  const [newCountry, setNewCountry] = useState("Germany");
-  const [newType, setNewType] = useState<"University Admission" | "Scholarship Grant">("University Admission");
-  const [newProgram, setNewProgram] = useState("M.Sc. Computer Science / AI");
-  const [newDeadline, setNewDeadline] = useState("2026-11-15");
+  const [newScholarship, setNewScholarship] = useState("");
+  const [newCountry, setNewCountry] = useState(
+    profile.targetPreferences?.includedRegions?.[0] || "Germany",
+  );
+  const [newDeadline, setNewDeadline] = useState("");
 
-  const handleAddApplication = () => {
+  // 1. Fetch user applications from Supabase API
+  const fetchApplications = async () => {
+    setLoading(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/tracker", {
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        // Map database records and parse stored document states from notes if available
+        const parsedApps: ApplicationRecord[] = json.data.map((item: any) => {
+          let docs = {
+            transcriptsAttested: false,
+            sopCompleted: false,
+            lorsObtained: false,
+            ieltsUploaded: false,
+            financialProofReady: false,
+          };
+
+          if (item.notes && item.notes.startsWith("{")) {
+            try {
+              const meta = JSON.parse(item.notes);
+              if (meta.documents) docs = meta.documents;
+            } catch (e) {
+              // Plain text note fallback
+            }
+          }
+
+          return {
+            id: item.id,
+            scholarship_name: item.scholarship_name,
+            university_provider: item.university_provider,
+            country: item.country,
+            deadline: item.deadline,
+            status: item.status || "Preparing",
+            notes: item.notes,
+            documents: docs,
+          };
+        });
+
+        setApps(parsedApps);
+      }
+    } catch (err) {
+      console.error("Failed to load tracked applications:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  // 2. Add application to Supabase
+  const handleAddApplication = async () => {
     if (!newUni) return;
-    const newRecord: ApplicationRecord = {
-      id: "app-" + Date.now(),
-      universityOrScholarship: newUni,
-      type: newType,
-      country: newCountry,
-      program: newProgram,
-      deadline: newDeadline,
-      status: "Preparing",
-      applicationFee: "Free",
-      feeWaiverAvailable: true,
-      documents: {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const initialDocs = {
         transcriptsAttested: true,
         sopCompleted: false,
         lorsObtained: false,
         ieltsUploaded: true,
-        financialProofReady: false
+        financialProofReady: false,
+      };
+
+      const res = await fetch("/api/tracker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          scholarshipName: newScholarship || newUni,
+          universityProvider: newUni,
+          country: newCountry,
+          deadline: newDeadline || null,
+          status: "Preparing",
+          notes: JSON.stringify({ documents: initialDocs }),
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setShowAddModal(false);
+        setNewUni("");
+        setNewScholarship("");
+        setNewDeadline("");
+        await fetchApplications();
       }
-    };
-    setApps([newRecord, ...apps]);
-    setShowAddModal(false);
-    setNewUni("");
+    } catch (err) {
+      console.error("Error creating tracked application:", err);
+    }
   };
 
-  const handleStatusChange = (id: string, newStatus: ApplicationRecord["status"]) => {
+  // 3. Update status in Supabase
+  const handleStatusChange = async (
+    id: string,
+    newStatus: ApplicationRecord["status"],
+  ) => {
     setApps((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a))
+      prev.map((a) => (a.id === id ? { ...a, status: newStatus } : a)),
     );
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      await fetch("/api/tracker", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+    } catch (err) {
+      console.error("Failed to persist status change:", err);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setApps((prev) => prev.filter((a) => a.id !== id));
+  // 4. Toggle checklist document item and sync with database notes
+  const toggleDocument = async (
+    appId: string,
+    docKey: keyof NonNullable<ApplicationRecord["documents"]>,
+  ) => {
+    const targetApp = apps.find((a) => a.id === appId);
+    if (!targetApp) return;
+
+    const currentDocs = targetApp.documents || {
+      transcriptsAttested: false,
+      sopCompleted: false,
+      lorsObtained: false,
+      ieltsUploaded: false,
+      financialProofReady: false,
+    };
+
+    const updatedDocs = { ...currentDocs, [docKey]: !currentDocs[docKey] };
+
+    setApps((prev) =>
+      prev.map((a) => (a.id === appId ? { ...a, documents: updatedDocs } : a)),
+    );
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      await fetch("/api/tracker", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          id: appId,
+          notes: JSON.stringify({ documents: updatedDocs }),
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to update checklist item:", err);
+    }
   };
+
+  // 5. Delete application
+  const handleDelete = async (id: string) => {
+    setApps((prev) => prev.filter((a) => a.id !== id));
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      await fetch(`/api/tracker?id=${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to delete application:", err);
+    }
+  };
+
+  // Dynamic Deadline Conflict Detection (Detect deadlines within 5 days of each other)
+  const conflictingDeadlines = apps.filter((app, index) => {
+    if (!app.deadline) return false;
+    const dateA = new Date(app.deadline).getTime();
+    return apps.some((other, otherIndex) => {
+      if (index === otherIndex || !other.deadline) return false;
+      const dateB = new Date(other.deadline).getTime();
+      const diffDays = Math.abs(dateA - dateB) / (1000 * 60 * 60 * 24);
+      return diffDays <= 5;
+    });
+  });
 
   const getStatusBadge = (status: ApplicationRecord["status"]) => {
     switch (status) {
       case "Accepted":
-        return "bg-emerald-100 text-emerald-800 font-bold";
+        return "bg-emerald-100 text-emerald-800 font-bold border-emerald-300";
       case "Result Awaited":
-        return "bg-amber-100 text-amber-800 font-bold";
+        return "bg-amber-100 text-amber-800 font-bold border-amber-300";
       case "Applied":
-        return "bg-blue-100 text-blue-800 font-bold";
+        return "bg-blue-100 text-blue-800 font-bold border-blue-300";
+      case "Rejected":
+        return "bg-rose-100 text-rose-800 font-bold border-rose-300";
       default:
-        return "bg-stone-200 text-stone-800 font-semibold";
+        return "bg-stone-200 text-stone-800 font-semibold border-stone-300";
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="bg-white rounded-2xl p-6 hairline-border editorial-shadow flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Bookmark className="w-4 h-4 text-[#2D5A43]" />
@@ -178,154 +273,255 @@ export default function ApplicationTracker() {
               Application Pipeline Manager
             </span>
           </div>
-          <h1 className="font-serif-editorial text-2xl sm:text-3xl font-bold text-[#1C1E21] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1C1E21] tracking-tight">
             Active Applications & Document Readiness
           </h1>
           <p className="text-xs sm:text-sm text-[#5C626A] mt-1 max-w-2xl leading-relaxed">
-            Separates university admissions from scholarship applications. Monitors missing transcripts, SOPs, LORs, and flags deadline clashes before they pile up.
+            All records persist directly to your private database. Tracks
+            required document preparation and highlights overlapping deadlines.
           </p>
         </div>
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2D5A43] hover:bg-[#234735] text-white text-xs font-semibold rounded-xl transition-all shadow-xs"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#2D5A43] hover:bg-[#234735] text-white text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Add New Application</span>
         </button>
       </div>
 
-      {/* Overlapping Deadline Alert Check */}
-      <div className="bg-[#FAF0EE] p-4 rounded-xl border border-[#C86248]/20 flex items-start gap-3 text-xs text-[#1C1E21]">
-        <AlertTriangle className="w-5 h-5 text-[#C86248] shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-[#C86248] block font-semibold">Deadline Conflict Warning:</strong>
-          <span>
-            You have 2 applications due within 3 days in November 2026 (DAAD EPOS & TUM Germany). Ensure your recommendation letters are requested from HITEC University professors 30 days prior.
-          </span>
+      {/* Dynamic Overlapping Deadline Conflict Alert */}
+      {conflictingDeadlines.length >= 2 && (
+        <div className="bg-[#FAF0EE] p-4 rounded-xl border border-[#C86248]/30 flex items-start gap-3 text-xs text-[#1C1E21]">
+          <AlertTriangle className="w-5 h-5 text-[#C86248] shrink-0 mt-0.5" />
+          <div>
+            <strong className="text-[#C86248] block font-semibold">
+              Deadline Clustering Alert:
+            </strong>
+            <span>
+              You have multiple target applications with submission deadlines
+              within 5 days of each other. Request professor recommendation
+              letters and finalize statement drafts ahead of time.
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Applications List */}
-      <div className="space-y-4">
-        {apps.map((app) => {
-          const docCount = Object.values(app.documents).filter(Boolean).length;
-          const totalDocs = Object.keys(app.documents).length;
-          const progressPct = Math.round((docCount / totalDocs) * 100);
+      {loading ? (
+        <div className="p-12 text-center text-xs text-gray-500 bg-white rounded-2xl border border-[#E5E7EB]">
+          Loading your application pipeline from database...
+        </div>
+      ) : apps.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-[#E5E7EB] space-y-3">
+          <Bookmark className="w-8 h-8 text-gray-400 mx-auto" />
+          <p className="text-sm font-semibold text-[#1A1A1A]">
+            No applications tracked yet
+          </p>
+          <p className="text-xs text-[#5C626A]">
+            Use the Scholarship Directory to add opportunities or click
+            &quot;Add New Application&quot; above.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {apps.map((app) => {
+            const docs = app.documents || {
+              transcriptsAttested: false,
+              sopCompleted: false,
+              lorsObtained: false,
+              ieltsUploaded: false,
+              financialProofReady: false,
+            };
+            const docCount = Object.values(docs).filter(Boolean).length;
+            const totalDocs = Object.keys(docs).length;
+            const progressPct = Math.round((docCount / totalDocs) * 100);
 
-          return (
-            <div
-              key={app.id}
-              className="bg-white rounded-2xl p-5 sm:p-6 hairline-border editorial-shadow space-y-4"
-            >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 bg-[#FAF8F5] text-[#5C626A] rounded-full text-[11px] font-medium border border-[#E5E0D8]">
-                      {app.type}
-                    </span>
-                    <span className="px-2.5 py-0.5 bg-[#EBF2EE] text-[#2D5A43] rounded-full text-[11px] font-bold">
-                      {app.country}
-                    </span>
+            return (
+              <div
+                key={app.id}
+                className="bg-white rounded-2xl p-5 sm:p-6 border border-[#E5E7EB] hover:border-emerald-300 transition-all space-y-4 shadow-xs"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 bg-[#FAF8F5] text-[#5C626A] rounded-full text-[11px] font-medium border border-[#E5E0D8]">
+                        {app.scholarship_name}
+                      </span>
+                      <span className="px-2.5 py-0.5 bg-[#EBF2EE] text-[#2D5A43] rounded-full text-[11px] font-bold">
+                        {app.country}
+                      </span>
+                    </div>
+
+                    <h2 className="text-lg font-bold text-[#1C1E21]">
+                      {app.university_provider}
+                    </h2>
                   </div>
 
-                  <h2 className="font-serif-editorial text-lg font-bold text-[#1C1E21]">
-                    {app.universityOrScholarship}
-                  </h2>
-                  <p className="text-xs text-[#5C626A] mt-0.5">{app.program}</p>
+                  {/* Status & Deadline Selector */}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="text-[10px] text-[#8A919A] block uppercase">
+                        Target Deadline
+                      </span>
+                      <span className="font-bold text-xs text-[#C86248]">
+                        {app.deadline || "Rolling / Open"}
+                      </span>
+                    </div>
+
+                    <select
+                      value={app.status}
+                      onChange={(e) =>
+                        handleStatusChange(app.id, e.target.value as any)
+                      }
+                      className={`px-3 py-1.5 text-xs rounded-xl border focus:outline-none cursor-pointer ${getStatusBadge(app.status)}`}
+                    >
+                      <option value="Preparing">Preparing</option>
+                      <option value="Applied">Applied</option>
+                      <option value="Result Awaited">Result Awaited</option>
+                      <option value="Accepted">Accepted ✓</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+
+                    <button
+                      onClick={() => handleDelete(app.id)}
+                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Application"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Status & Deadline Selector */}
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="text-[10px] text-[#8A919A] block uppercase">Deadline</span>
-                    <span className="font-bold text-xs text-[#C86248]">{app.deadline}</span>
+                {/* Progress & Document Checklist Grid */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E5E7EB] space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-[#1C1E21]">
+                      Document Readiness: {docCount}/{totalDocs} Completed (
+                      {progressPct}%)
+                    </span>
+                    <span className="text-[11px] text-gray-400">
+                      Click any document to toggle readiness
+                    </span>
                   </div>
 
-                  <select
-                    value={app.status}
-                    onChange={(e) => handleStatusChange(app.id, e.target.value as any)}
-                    className={`px-3 py-1.5 text-xs rounded-xl border focus:outline-none ${getStatusBadge(app.status)}`}
-                  >
-                    <option value="Preparing">Preparing</option>
-                    <option value="Applied">Applied</option>
-                    <option value="Result Awaited">Result Awaited</option>
-                    <option value="Accepted">Accepted ✓</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                  <div className="w-full bg-[#E5E0D8] h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-[#2D5A43] h-full transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
 
-                  <button
-                    onClick={() => handleDelete(app.id)}
-                    className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Interactive Document checklist */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px] pt-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleDocument(app.id, "transcriptsAttested")
+                      }
+                      className={`flex items-center gap-1.5 cursor-pointer text-left transition-colors ${
+                        docs.transcriptsAttested
+                          ? "text-[#2D5A43] font-semibold"
+                          : "text-stone-400"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Transcripts Attested</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleDocument(app.id, "sopCompleted")}
+                      className={`flex items-center gap-1.5 cursor-pointer text-left transition-colors ${
+                        docs.sopCompleted
+                          ? "text-[#2D5A43] font-semibold"
+                          : "text-stone-400"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Custom SOP</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleDocument(app.id, "lorsObtained")}
+                      className={`flex items-center gap-1.5 cursor-pointer text-left transition-colors ${
+                        docs.lorsObtained
+                          ? "text-[#2D5A43] font-semibold"
+                          : "text-stone-400"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Academic LORs</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleDocument(app.id, "ieltsUploaded")}
+                      className={`flex items-center gap-1.5 cursor-pointer text-left transition-colors ${
+                        docs.ieltsUploaded
+                          ? "text-[#2D5A43] font-semibold"
+                          : "text-stone-400"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>IELTS / Language</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleDocument(app.id, "financialProofReady")
+                      }
+                      className={`flex items-center gap-1.5 cursor-pointer text-left transition-colors ${
+                        docs.financialProofReady
+                          ? "text-[#2D5A43] font-semibold"
+                          : "text-stone-400"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Financial Proof</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Progress & Document Checklist Grid */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl hairline-border space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#1C1E21]">
-                    Document Readiness: {docCount}/{totalDocs} Completed ({progressPct}%)
-                  </span>
-                  <span className="text-[#8A919A]">Fee: {app.applicationFee}</span>
-                </div>
-
-                <div className="w-full bg-[#E5E0D8] h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-[#2D5A43] h-full transition-all duration-500"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-
-                {/* Document checklist icons */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px] pt-1">
-                  <div className={`flex items-center gap-1.5 ${app.documents.transcriptsAttested ? "text-[#2D5A43] font-medium" : "text-stone-400"}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>HEC Transcripts</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${app.documents.sopCompleted ? "text-[#2D5A43] font-medium" : "text-stone-400"}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Custom SOP</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${app.documents.lorsObtained ? "text-[#2D5A43] font-medium" : "text-stone-400"}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>2 Academic LORs</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${app.documents.ieltsUploaded ? "text-[#2D5A43] font-medium" : "text-stone-400"}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>IELTS Report</span>
-                  </div>
-                  <div className={`flex items-center gap-1.5 ${app.documents.financialProofReady ? "text-[#2D5A43] font-medium" : "text-stone-400"}`}>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Financial Proof</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Application Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full border hairline-border shadow-2xl space-y-4">
-            <h3 className="font-serif-editorial text-lg font-bold text-[#1C1E21]">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-[#E5E7EB] shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-[#1C1E21]">
               Add New Application Tracker
             </h3>
 
             <div>
               <label className="block text-xs font-bold text-[#5C626A] uppercase mb-1">
-                University or Scholarship Name
+                University or Organization Name
               </label>
               <input
                 type="text"
                 value={newUni}
                 onChange={(e) => setNewUni(e.target.value)}
-                placeholder="e.g. Aalto University Finland"
-                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] hairline-border focus:outline-none focus:ring-1 focus:ring-[#2D5A43]"
+                placeholder="e.g. Technical University of Munich"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#2D5A43]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#5C626A] uppercase mb-1">
+                Scholarship / Degree Program
+              </label>
+              <input
+                type="text"
+                value={newScholarship}
+                onChange={(e) => setNewScholarship(e.target.value)}
+                placeholder="e.g. DAAD EPOS or M.Sc. Computer Science"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-[#2D5A43]"
               />
             </div>
 
@@ -338,49 +534,35 @@ export default function ApplicationTracker() {
                   type="text"
                   value={newCountry}
                   onChange={(e) => setNewCountry(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] hairline-border"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] border border-[#E5E7EB]"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-[#5C626A] uppercase mb-1">
-                  Type
+                  Deadline
                 </label>
-                <select
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] hairline-border"
-                >
-                  <option value="University Admission">University Admission</option>
-                  <option value="Scholarship Grant">Scholarship Grant</option>
-                </select>
+                <input
+                  type="date"
+                  value={newDeadline}
+                  onChange={(e) => setNewDeadline(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] border border-[#E5E7EB]"
+                />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#5C626A] uppercase mb-1">
-                Deadline
-              </label>
-              <input
-                type="date"
-                value={newDeadline}
-                onChange={(e) => setNewDeadline(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF8F5] hairline-border"
-              />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-xs font-medium text-[#5C626A]"
+                className="px-4 py-2 text-xs font-medium text-[#5C626A] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddApplication}
-                className="px-4 py-2 text-xs font-semibold bg-[#2D5A43] text-white rounded-xl shadow-xs"
+                className="px-4 py-2 text-xs font-semibold bg-[#2D5A43] hover:bg-[#234735] text-white rounded-xl shadow-xs cursor-pointer"
               >
-                Add Application
+                Save to Database
               </button>
             </div>
           </div>

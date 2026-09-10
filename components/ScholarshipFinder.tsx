@@ -14,16 +14,18 @@ import {
   MapPin,
   TrendingUp,
   ShieldCheck,
-  Zap,
-  Server
+  BookmarkCheck,
+  BookmarkPlus,
 } from "lucide-react";
 import { ScholarshipItem } from "../lib/scholarship-database";
 import AutomationMonitor from "./AutomationMonitor";
+import { useProfile } from "@/app/context/ProfileContext";
+import { supabase } from "../lib/supabase";
 
 interface ScholarshipFinderProps {
   scholarships: ScholarshipItem[];
-  candidateCgpa: number;
-  candidateNationality: string;
+  candidateCgpa?: number;
+  candidateNationality?: string;
   onSelectScholarshipForSop: (scholarship: ScholarshipItem) => void;
   onAddCustomScholarship: (scholarship: ScholarshipItem) => void;
   onOpenAiResearch: () => void;
@@ -32,41 +34,91 @@ interface ScholarshipFinderProps {
 
 export default function ScholarshipFinder({
   scholarships,
-  candidateCgpa,
-  candidateNationality,
   onSelectScholarshipForSop,
   onAddCustomScholarship,
   onOpenAiResearch,
-  onRefreshLiveScholarships
+  onRefreshLiveScholarships,
 }: ScholarshipFinderProps) {
+  const { profile } = useProfile();
+  const studentName = profile.name || "Student Applicant";
+  const studentDegree = profile.degree || "Undergraduate Degree";
+  const studentCgpa = profile.cgpa || 0.0;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState<string>("All");
   const [selectedFunding, setSelectedFunding] = useState<string>("All");
   const [selectedMatch, setSelectedMatch] = useState<string>("All");
-  const [expandedId, setExpandedId] = useState<string | null>(scholarships[0]?.id || null);
-  const [reminderActiveMap, setReminderActiveMap] = useState<Record<string, boolean>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(
+    scholarships[0]?.id || null,
+  );
+  const [reminderActiveMap, setReminderActiveMap] = useState<
+    Record<string, boolean>
+  >({});
 
-  // Filtered list
+  const [trackedIds, setTrackedIds] = useState<Record<string, boolean>>({});
+  const [trackingLoading, setTrackingLoading] = useState<string | null>(null);
+
   const filtered = scholarships.filter((s) => {
     const matchesSearch =
       s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.country.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.provider.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.studyFields.some((f) => f.toLowerCase().includes(searchTerm.toLowerCase()));
+      s.studyFields.some((f) =>
+        f.toLowerCase().includes(searchTerm.toLowerCase()),
+      );
 
-    const matchesRegion = selectedRegion === "All" || s.region === selectedRegion;
-    const matchesFunding = selectedFunding === "All" || s.fundingType === selectedFunding;
-    const matchesMatchRating = selectedMatch === "All" || s.matchRating === selectedMatch;
+    const matchesRegion =
+      selectedRegion === "All" || s.region === selectedRegion;
+    const matchesFunding =
+      selectedFunding === "All" || s.fundingType === selectedFunding;
+    const matchesMatchRating =
+      selectedMatch === "All" || s.matchRating === selectedMatch;
 
-    return matchesSearch && matchesRegion && matchesFunding && matchesMatchRating;
+    return (
+      matchesSearch && matchesRegion && matchesFunding && matchesMatchRating
+    );
   });
 
   const toggleReminder = (id: string) => {
     setReminderActiveMap((prev) => ({
       ...prev,
-      [id]: !prev[id]
+      [id]: !prev[id],
     }));
+  };
+
+  const handleTrackScholarship = async (item: ScholarshipItem) => {
+    try {
+      setTrackingLoading(item.id);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/tracker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({
+          scholarshipName: item.title,
+          universityProvider: item.provider,
+          country: item.country,
+          deadline: item.deadline,
+          status: "planning",
+          notes: `Funding: ${item.fundingType}. Match: ${item.matchScore}%`,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setTrackedIds((prev) => ({ ...prev, [item.id]: true }));
+      }
+    } catch (err) {
+      console.error("Failed to track scholarship to Supabase:", err);
+    } finally {
+      setTrackingLoading(null);
+    }
   };
 
   const getFundingBadgeClass = (type: string) => {
@@ -93,7 +145,6 @@ export default function ScholarshipFinder({
 
   return (
     <div className="space-y-6">
-      {/* Automation Monitor Header */}
       <AutomationMonitor />
 
       {/* Main Control Banner */}
@@ -102,14 +153,16 @@ export default function ScholarshipFinder({
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-              Verified Master&apos;s Matcher (0 Hardcoding)
+              Verified Master&apos;s Matcher (Dynamic Supabase Sync)
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A] tracking-tight">
             Targeted Master&apos;s Scholarships Directory
           </h1>
           <p className="text-xs sm:text-sm text-[#5C626A] mt-1 max-w-2xl leading-relaxed">
-            Filtered specifically for <strong>Muhammad Taha</strong> (BS Software Engineering, CGPA {candidateCgpa.toFixed(2)}, Pakistani passport). Evaluated across Europe, Australia, NZ, and Canada.
+            Personalized for <strong>{studentName}</strong> ({studentDegree}
+            {studentCgpa > 0 ? `, CGPA ${studentCgpa.toFixed(2)}` : ""}).
+            Evaluated across your selected target regions.
           </p>
         </div>
 
@@ -121,14 +174,18 @@ export default function ScholarshipFinder({
               setIsRefreshing(false);
             }}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-50"
           >
             {isRefreshing ? (
-               <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+              <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
             ) : (
-               <Search className="w-4 h-4" />
+              <Search className="w-4 h-4" />
             )}
-            <span>{isRefreshing ? "Fetching Internet Data..." : "Refresh Internet Data"}</span>
+            <span>
+              {isRefreshing
+                ? "Fetching Internet Data..."
+                : "Refresh Internet Data"}
+            </span>
           </button>
           <button
             onClick={onOpenAiResearch}
@@ -162,8 +219,10 @@ export default function ScholarshipFinder({
               onChange={(e) => setSelectedRegion(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl bg-[#F9FAF8] border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-emerald-600 text-[#1A1A1A]"
             >
-              <option value="All">All Allowed Regions</option>
-              <option value="Europe">Europe (Germany, Sweden, Finland, Netherlands)</option>
+              <option value="All">All Regions</option>
+              <option value="Europe">
+                Europe (Germany, Sweden, Finland, Netherlands)
+              </option>
               <option value="Australia">Australia</option>
               <option value="New Zealand">New Zealand</option>
               <option value="Canada">Canada</option>
@@ -178,7 +237,9 @@ export default function ScholarshipFinder({
               className="w-full px-3 py-2 text-xs rounded-xl bg-[#F9FAF8] border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-emerald-600 text-[#1A1A1A]"
             >
               <option value="All">All Funding Levels</option>
-              <option value="Fully Funded">Fully Funded (Stipend + Tuition)</option>
+              <option value="Fully Funded">
+                Fully Funded (Stipend + Tuition)
+              </option>
               <option value="Full Tuition Waiver">Full Tuition Waiver</option>
               <option value="Partial Funding">Partial Funding</option>
             </select>
@@ -191,18 +252,20 @@ export default function ScholarshipFinder({
               onChange={(e) => setSelectedMatch(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl bg-[#F9FAF8] border border-[#E5E7EB] focus:outline-none focus:ring-1 focus:ring-emerald-600 text-[#1A1A1A]"
             >
-              <option value="All">All Candidate Match Scores</option>
+              <option value="All">All Match Scores</option>
               <option value="Strong Match">Strong Match (88%+)</option>
               <option value="Possible Match">Possible Match (65-87%)</option>
             </select>
           </div>
         </div>
 
-        {/* Count summary & policy notice */}
         <div className="flex items-center justify-between text-xs text-[#5C626A] pt-1 border-t border-[#E5E7EB]/80">
-          <span>Showing <strong>{filtered.length}</strong> of {scholarships.length} verified opportunities</span>
+          <span>
+            Showing <strong>{filtered.length}</strong> of {scholarships.length}{" "}
+            opportunities
+          </span>
           <span className="text-gray-400 hidden sm:inline">
-            *Strict Destination Policy: Europe, Australia, NZ, Canada.
+            Matches synced with active profile CGPA and target regions
           </span>
         </div>
       </div>
@@ -212,6 +275,8 @@ export default function ScholarshipFinder({
         {filtered.map((item) => {
           const isExpanded = expandedId === item.id;
           const isReminderSet = !!reminderActiveMap[item.id];
+          const isTracked = !!trackedIds[item.id];
+          const isTrackingThis = trackingLoading === item.id;
 
           return (
             <div
@@ -219,22 +284,26 @@ export default function ScholarshipFinder({
               className="bg-white rounded-2xl border border-[#E5E7EB] hover:border-emerald-300 transition-all overflow-hidden shadow-xs"
             >
               {/* Card Main Bar */}
-              <div className="p-5 sm:p-6 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : item.id)}>
+              <div
+                className="p-5 sm:p-6 cursor-pointer"
+                onClick={() => setExpandedId(isExpanded ? null : item.id)}
+              >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   {/* Left: Title & Metadata */}
                   <div className="space-y-2 max-w-3xl">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {/* Funding badge */}
-                      <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-medium ${getFundingBadgeClass(item.fundingType)}`}>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full border text-[11px] font-medium ${getFundingBadgeClass(item.fundingType)}`}
+                      >
                         {item.fundingType}
                       </span>
 
-                      {/* Match Score */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] ${getMatchBadgeClass(item.matchRating)}`}>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] ${getMatchBadgeClass(item.matchRating)}`}
+                      >
                         {item.matchRating} ({item.matchScore}%)
                       </span>
 
-                      {/* Country */}
                       <span className="inline-flex items-center gap-1 text-[#5C626A] font-medium bg-[#F9FAF8] px-2.5 py-0.5 rounded-full border border-[#E5E7EB]">
                         <MapPin className="w-3 h-3 text-emerald-600" />
                         {item.country}
@@ -246,8 +315,14 @@ export default function ScholarshipFinder({
                     </h2>
 
                     <p className="text-xs text-[#5C626A]">
-                      Provider: <strong className="text-[#1A1A1A]">{item.provider}</strong> • Sequence:{" "}
-                      <span className="text-emerald-700 font-medium">{item.admissionSequence}</span>
+                      Provider:{" "}
+                      <strong className="text-[#1A1A1A]">
+                        {item.provider}
+                      </strong>{" "}
+                      • Sequence:{" "}
+                      <span className="text-emerald-700 font-medium">
+                        {item.admissionSequence}
+                      </span>
                     </p>
                   </div>
 
@@ -270,7 +345,11 @@ export default function ScholarshipFinder({
                       }}
                       className="p-2 text-[#5C626A] hover:bg-[#F0F2EE] rounded-lg transition-colors"
                     >
-                      {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -279,45 +358,76 @@ export default function ScholarshipFinder({
               {/* Expanded Details Section */}
               {isExpanded && (
                 <div className="px-5 pb-6 pt-2 border-t border-[#E5E7EB] bg-[#F9FAF8]/70 space-y-5">
-                  {/* Match Reason Analysis */}
                   <div className="bg-[#F0F2EE] p-4 rounded-xl border border-emerald-200/80 text-xs text-[#1A1A1A] space-y-1">
                     <div className="flex items-center gap-1.5 font-bold text-emerald-800">
-                      <TrendingUp className="w-4 h-4 text-emerald-600" /> Why you match this scholarship (Candidate Analysis)
+                      <TrendingUp className="w-4 h-4 text-emerald-600" /> Why
+                      your profile matches this scholarship
                     </div>
-                    <p className="leading-relaxed text-emerald-950/90">{item.matchReason}</p>
+                    <p className="leading-relaxed text-emerald-950/90">
+                      {item.matchReason}
+                    </p>
                   </div>
 
-                  {/* Key Stipend & Benefits */}
+                  {/* Key Stipend & Requirements */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-[#E5E7EB] text-xs space-y-2">
-                      <span className="font-bold text-[#1A1A1A] block uppercase tracking-wider flex items-center gap-1.5">
-                        <Award className="w-4 h-4 text-emerald-600" /> Stipend & Coverage
+                      <span className="font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-emerald-600" /> Stipend &
+                        Coverage
                       </span>
-                      <p className="text-[#5C626A] leading-relaxed font-medium">{item.stipendBenefits}</p>
+                      <p className="text-[#5C626A] leading-relaxed font-medium">
+                        {item.stipendBenefits}
+                      </p>
                     </div>
 
                     <div className="bg-white p-4 rounded-xl border border-[#E5E7EB] text-xs space-y-2">
-                      <span className="font-bold text-[#1A1A1A] block uppercase tracking-wider flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Requirements & Thresholds
+                      <span className="font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />{" "}
+                        Requirements & Thresholds
                       </span>
                       <ul className="text-[#5C626A] space-y-1">
-                        <li>• Min CGPA: <strong>{item.academicRequirements.minCgpa}</strong> (Your CGPA: <strong>{candidateCgpa.toFixed(2)}</strong> ✓)</li>
-                        <li>• IELTS Academic: <strong>{item.academicRequirements.ieltsMin}+</strong></li>
-                        <li>• GRE Required: <strong>{item.academicRequirements.greRequired ? "Yes" : "No (Waived)"}</strong></li>
-                        <li>• Age Limit: <strong>{item.academicRequirements.ageLimit || "None"}</strong></li>
-                        <li>• Pakistani Passport Eligible: <strong>Yes ✓</strong></li>
+                        <li>
+                          • Min CGPA:{" "}
+                          <strong>{item.academicRequirements.minCgpa}</strong>{" "}
+                          {studentCgpa >=
+                          Number(item.academicRequirements.minCgpa || 0)
+                            ? `(Your CGPA: ${studentCgpa.toFixed(2)} ✓)`
+                            : ""}
+                        </li>
+                        <li>
+                          • IELTS Academic:{" "}
+                          <strong>{item.academicRequirements.ieltsMin}+</strong>
+                        </li>
+                        <li>
+                          • GRE Required:{" "}
+                          <strong>
+                            {item.academicRequirements.greRequired
+                              ? "Yes"
+                              : "No (Waived)"}
+                          </strong>
+                        </li>
+                        <li>
+                          • Age Limit:{" "}
+                          <strong>
+                            {item.academicRequirements.ageLimit || "None"}
+                          </strong>
+                        </li>
                       </ul>
                     </div>
                   </div>
 
                   {/* Document Checklist */}
                   <div className="bg-white p-4 rounded-xl border border-[#E5E7EB] text-xs space-y-2">
-                    <span className="font-bold text-[#1A1A1A] block uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" /> Exact Required Documents
+                    <span className="font-bold text-[#1A1A1A] uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" /> Exact
+                      Required Documents
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       {item.requiredDocuments.map((doc, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-[#5C626A]">
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 text-[#5C626A]"
+                        >
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                           <span>{doc}</span>
                         </div>
@@ -325,31 +435,60 @@ export default function ScholarshipFinder({
                     </div>
                   </div>
 
-                  {/* Reminder Schedule */}
+                  {/* Actions Bar */}
                   <div className="bg-white p-4 rounded-xl border border-[#E5E7EB] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <span className="font-bold text-[#1A1A1A] block">
-                        Automated Reminder Schedule
+                        Automated Deadline Tracking
                       </span>
                       <p className="text-gray-400">
-                        Reminders scheduled at: {item.reminderScheduleDays.map((d) => `${d}d`).join(" • ")} before deadline.
+                        Syncs deadline alerts to your personal dashboard and
+                        database.
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => toggleReminder(item.id)}
-                      className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                        isReminderSet
-                          ? "bg-emerald-600 text-white"
-                          : "bg-[#F0F2EE] text-[#5C626A] hover:text-[#1A1A1A]"
-                      }`}
-                    >
-                      <Bell className="w-3.5 h-3.5" />
-                      <span>{isReminderSet ? "Reminders Set ✓" : "Activate Reminders"}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleTrackScholarship(item)}
+                        disabled={isTracked || isTrackingThis}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-colors cursor-pointer text-xs ${
+                          isTracked
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : "bg-[#F0F2EE] text-[#1A1A1A] hover:bg-zinc-200"
+                        }`}
+                      >
+                        {isTracked ? (
+                          <>
+                            <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Tracked in Dashboard ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookmarkPlus className="w-3.5 h-3.5 text-zinc-600" />
+                            <span>
+                              {isTrackingThis ? "Saving..." : "Add to Tracker"}
+                            </span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => toggleReminder(item.id)}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-colors cursor-pointer text-xs ${
+                          isReminderSet
+                            ? "bg-emerald-600 text-white"
+                            : "bg-[#F0F2EE] text-[#5C626A] hover:text-[#1A1A1A]"
+                        }`}
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>
+                          {isReminderSet ? "Reminder Set ✓" : "Set Alert"}
+                        </span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* SOP & Link */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                     <div className="flex items-center gap-2">
                       <button
