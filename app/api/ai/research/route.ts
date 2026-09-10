@@ -1,149 +1,140 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getGeminiClient } from "@/lib/gemini";
-import { Type } from "@google/genai";
-import { formatSearchContext, searchWeb } from "@/lib/tavily";
+import { supabaseAdmin } from "@/lib/supabase";
+import { getGroqClient } from "@/lib/groq";
+import { searchWeb, formatSearchContext } from "@/lib/tavily";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
     const {
       targetCountry,
       researchTopic,
-      degreeLevel = "Master's (MS)",
+      degreeLevel = "Master of Science",
       candidate,
-    } = body;
+    } = await req.json();
 
-    // Fallback profile if none passed in request
-    const userProfile = {
-      name: candidate?.name || "Applicant",
-      nationality: candidate?.location || "International Student",
-      degree: candidate?.degree || "Undergraduate Degree",
-      university: candidate?.university || "Accredited University",
-      cgpa: candidate?.cgpa ?? 3.0,
-      skills: Array.isArray(candidate?.skills)
-        ? candidate.skills.join(", ")
-        : candidate?.skills || researchTopic || "Computer Science",
-      projects: Array.isArray(candidate?.projects)
-        ? candidate.projects.join(", ")
-        : candidate?.projects || "Undergraduate projects",
-      targetCountries:
-        targetCountry ||
-        candidate?.targetCountries?.join(", ") ||
-        "Europe, Australia, Canada, New Zealand",
-    };
+    const topic =
+      researchTopic ||
+      candidate?.targetPreferences?.fieldOfStudy?.[0] ||
+      "Computer Science";
 
-    const ai = getGeminiClient();
+    const country =
+      targetCountry ||
+      candidate?.targetPreferences?.includedRegions?.[0] ||
+      "Germany";
 
-    // Dynamically search based on user profile
-    const searchQuery = `${userProfile.targetCountries} ${degreeLevel} scholarships ${userProfile.degree} ${researchTopic || userProfile.skills} international students deadline`;
-    const sources = await searchWeb(searchQuery, 8);
+    const userCgpa = candidate?.cgpa ?? 3.2;
 
+    // Normalizing cache ID (e.g., "scholarship:germany:computer-science")
+    const cleanCountry = country.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const cleanTopic = topic.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    const cacheId = `scholarship:${cleanCountry}:${cleanTopic}`;
+
+    // 1. CHECK SUPABASE CACHE FIRST (0 API costs)
+    const { data: cachedEntry } = await supabaseAdmin
+      .from("intelligence_cache")
+      .select("payload, expires_at")
+      .eq("id", cacheId)
+      .maybeSingle();
+
+    if (cachedEntry && new Date(cachedEntry.expires_at) > new Date()) {
+      return NextResponse.json({
+        success: true,
+        data: cachedEntry.payload,
+        source: "supabase_cache",
+      });
+    }
+
+    // 2. CACHE MISS: Live search using Tavily
+    const currentYear = new Date().getFullYear();
+    const query = `${country} ${degreeLevel} fully funded international student scholarships ${topic} deadline ${currentYear}`;
+
+    let sources: any[] = [];
+    try {
+      sources = await searchWeb(query, 5);
+    } catch (err) {
+      console.warn("Tavily scholarship search warning:", err);
+    }
+
+    const searchContext = formatSearchContext(sources);
+
+    // 3. SYNTHESIZE OPPORTUNITIES USING GROQ
+    const groq = getGroqClient();
     const prompt = `
-You are an expert academic research advisor and scholarship intelligence agent.
+You are an academic scholarship advisor for international students from Pakistan.
 
-Candidate Profile:
-- Name: ${userProfile.name}
-- Nationality / Location: ${userProfile.nationality}
-- Background Degree: ${userProfile.degree} from ${userProfile.university}
-- CGPA: ${userProfile.cgpa} / 4.00
-- Core Technical Skills: ${userProfile.skills}
-- Key Projects / Portfolio: ${userProfile.projects}
-- Target Countries / Regions: ${userProfile.targetCountries}
-- Target Degree: ${degreeLevel}
-- Specific Research Interest: ${researchTopic || userProfile.skills}
+Target Country: ${country}
+Field of Study: ${topic}
+Degree Level: ${degreeLevel}
+Applicant Profile: CGPA ${userCgpa} / 4.00
 
-Use the Tavily sources below as your primary evidence. Find 3 highly specific, real-world scholarship or research assistantship opportunities that match this applicant's CGPA (${userProfile.cgpa}) and field. Do not invent deadlines, eligibility criteria, or URLs. If a source does not confirm a detail, write "Not confirmed".
+LIVE WEB SEARCH EVIDENCE:
+${searchContext || "No live snippets retrieved. Provide verified government and university scholarships."}
 
-Return structured JSON according to the schema provided.
+TASK:
+Analyze the snippets and provide a structured list of real, active scholarship opportunities.
+For each opportunity, calculate an estimated match score for a candidate with CGPA ${userCgpa}.
 
-Tavily sources:
-${formatSearchContext(sources)}
+Return ONLY valid JSON matching this schema:
+{
+  "opportunities": [
+    {
+      "id": "slug-id",
+      "title": "Scholarship Name",
+      "universityOrProvider": "University or Host Organization",
+      "country": "${country}",
+      "fundingType": "Fully Funded" | "Partial Waiver" | "Tuition Only",
+      "matchScore": 88,
+      "matchRating": "Strong Match" | "Moderate Match" | "Competitive Reach",
+      "matchReason": "Why this aligns with the applicant's profile",
+      "stipendDetails": "Monthly stipend and tuition coverage details",
+      "estimatedDeadline": "YYYY-MM-DD or Season (e.g. 2026-11-15)",
+      "keyRequirements": ["Requirement 1", "Requirement 2", "Requirement 3"],
+      "officialPortalLink": "https://..."
+    }
+  ],
+  "lastUpdated": "${new Date().toISOString().split("T")[0]}"
+}
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction:
-          "You provide verified academic scholarship intelligence for international applicants. Never hallucinate fake domains or fake deadlines.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            opportunities: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  universityOrProvider: { type: Type.STRING },
-                  country: { type: Type.STRING },
-                  fundingType: {
-                    type: Type.STRING,
-                    description:
-                      "Fully Funded, Full Tuition Waiver, or Partial Funding",
-                  },
-                  matchScore: {
-                    type: Type.NUMBER,
-                    description: "Match score percentage out of 100",
-                  },
-                  matchRating: {
-                    type: Type.STRING,
-                    description:
-                      "Strong Match, Possible Match, or Not Eligible",
-                  },
-                  matchReason: { type: Type.STRING },
-                  stipendDetails: { type: Type.STRING },
-                  estimatedDeadline: { type: Type.STRING },
-                  keyRequirements: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING },
-                  },
-                  relevantProfessorsOrLabs: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        labName: { type: Type.STRING },
-                        email: { type: Type.STRING },
-                        researchDomain: { type: Type.STRING },
-                      },
-                    },
-                  },
-                  officialPortalLink: { type: Type.STRING },
-                },
-                required: [
-                  "title",
-                  "universityOrProvider",
-                  "country",
-                  "fundingType",
-                  "matchScore",
-                  "matchRating",
-                  "matchReason",
-                  "stipendDetails",
-                  "estimatedDeadline",
-                  "keyRequirements",
-                  "officialPortalLink",
-                ],
-              },
-            },
-          },
-          required: ["opportunities"],
+    const completion = await groq.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You extract active academic scholarships into clean JSON. Always provide realistic deadlines and requirements.",
         },
-      },
+        { role: "user", content: prompt },
+      ],
     });
 
-    const jsonText = response.text || "{}";
-    const data = JSON.parse(jsonText);
+    const parsedData = JSON.parse(
+      completion.choices[0]?.message?.content || "{}",
+    );
 
-    return NextResponse.json({ success: true, data });
+    // 4. SAVE TO SUPABASE CACHE (Valid for 48 hours to preserve search credits)
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    await supabaseAdmin.from("intelligence_cache").upsert({
+      id: cacheId,
+      category: "scholarship",
+      payload: parsedData,
+      expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: parsedData,
+      source: "live_ai_grounded",
+    });
   } catch (error: any) {
-    console.error("AI Scholarship Research Error:", error);
+    console.error("Scholarship Research API Error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to execute dynamic AI research",
+        error: error.message || "Failed to fetch scholarships",
       },
       { status: 500 },
     );

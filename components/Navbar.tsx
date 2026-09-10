@@ -91,10 +91,7 @@ export default function Navbar({
           <button
             onClick={onOpenDeployModal}
             className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/30 transition-all cursor-pointer shadow-xs"
-          >
-            <Server className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Deploy to Vercel</span>
-          </button>
+          ></button>
 
           <button
             onClick={onOpenProfile}

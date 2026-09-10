@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
 import { getGroqClient } from "@/lib/groq";
 import { searchWeb, formatSearchContext } from "@/lib/tavily";
 
 export async function POST(req: NextRequest) {
   try {
     const { country = "Germany" } = await req.json();
-    const currentYear = new Date().getFullYear();
+    const cacheId = `visa:${country.toLowerCase()}`;
 
-    // 1. Dynamic live searches across the web - ZERO hardcoded amounts
+    // 1. CHECK SUPABASE CACHE FIRST (0 API spend, 0 quota burn)
+    const { data: cachedEntry } = await supabaseAdmin
+      .from("intelligence_cache")
+      .select("payload, expires_at")
+      .eq("id", cacheId)
+      .maybeSingle();
+
+    if (cachedEntry && new Date(cachedEntry.expires_at) > new Date()) {
+      return NextResponse.json({
+        success: true,
+        data: cachedEntry.payload,
+        source: "supabase_cache",
+      });
+    }
+
+    // 2. CACHE MISS / EXPIRED: Run live Tavily search
+    const currentYear = new Date().getFullYear();
     const queries = [
       `${country} international student visa proof of funds financial requirement living expenses ${currentYear}`,
       `${country} student visa blocked account bank balance post study work permit hours per week rules`,
@@ -31,11 +48,10 @@ export async function POST(req: NextRequest) {
     const searchContext = formatSearchContext(uniqueSources);
     const sourceUrls = uniqueSources.map((s) => s.url).filter(Boolean);
 
-    // 2. Groq Model processes the live web snippets directly
+    // 3. SYNTHESIZE WITH GROQ
     const groq = getGroqClient();
-
     const prompt = `
-You are an expert international student immigration intelligence officer.
+You are an expert international student immigration officer.
 Target Destination: ${country}
 Target Applicant: Master's degree student holding a Pakistani passport.
 
@@ -43,56 +59,66 @@ LIVE WEB SEARCH EVIDENCE:
 ${searchContext || "No live search results available."}
 
 TASK:
-Analyze the web search evidence above and extract the current official immigration policies for ${country}.
-Extract:
-1. Exact financial proof, living costs, or blocked account figure in local currency and approximate PKR.
-2. Deposit protocol (e.g. Blocked Account, GIC, personal bank statement, or escrow).
-3. Post-study work permit duration and PR pathways.
-4. Part-time working hours allowed during semesters and vacations.
-5. Embassy / VFS Global application procedures and wait time realities for Pakistani passport holders.
-6. Crucial warnings and refusal-prevention advice.
+Extract current official immigration rules for ${country}:
+- Exact financial proof / living costs / blocked account figure (currency + approx PKR).
+- Account protocol (Blocked Account, GIC, personal bank statement, escrow).
+- Post-study work permit duration and PR pathway ease.
+- Legal part-time working hours.
+- Embassy/VFS wait times for Pakistani applicants.
+- Key step-by-step checklist and refusal-prevention warnings.
 
-OUTPUT FORMAT:
-You MUST respond with a single valid JSON object strictly matching this schema:
+Return ONLY a single valid JSON object strictly matching this schema:
 {
   "country": "${country}",
   "flagEmoji": "flag emoji",
-  "visaType": "official visa or residence permit title",
-  "financialProofRequired": "exact currency amount and approx PKR",
-  "blockedAccountDetails": "account mechanism (e.g. Sperrkonto, GIC, personal bank balance)",
-  "postStudyWorkPermit": "exact post-study work visa duration",
-  "partTimeWorkAllowance": "hours allowed per week or fortnight",
+  "visaType": "official visa title",
+  "financialProofRequired": "amount with PKR",
+  "blockedAccountDetails": "account mechanism",
+  "postStudyWorkPermit": "duration",
+  "partTimeWorkAllowance": "allowed hours",
   "prPathwayEase": "High" | "Moderate" | "Selective",
-  "embassyAppointmentPortal": "official booking portal name",
-  "pakistanWaitTime": "current appointment wait time in Pakistan",
+  "embassyAppointmentPortal": "official booking portal",
+  "pakistanWaitTime": "queue duration in Pakistan",
   "keyStepsPakistani": ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"],
   "importantWarnings": ["Warning 1", "Warning 2", "Warning 3"],
-  "sourceUrls": ${JSON.stringify(sourceUrls.slice(0, 6))},
+  "sourceUrls": ${JSON.stringify(sourceUrls.slice(0, 5))},
   "lastUpdated": "${new Date().toISOString().split("T")[0]}"
 }
 `;
 
     const completion = await groq.chat.completions.create({
-      model: "openai/gpt-oss-120b", // High-capacity open weights model on Groq
+      model: "openai/gpt-oss-120b",
       response_format: { type: "json_object" },
       temperature: 0.1,
       messages: [
         {
           role: "system",
           content:
-            "You are an immigration data extraction system. You output only valid JSON based on verified immigration information and search snippets. Never return placeholders like 'Not confirmed'.",
+            "You output only valid JSON based on official immigration guidelines.",
         },
-        {
-          role: "user",
-          content: prompt,
-        },
+        { role: "user", content: prompt },
       ],
     });
 
-    const content = completion.choices[0]?.message?.content || "{}";
-    const data = JSON.parse(content);
+    const parsedData = JSON.parse(
+      completion.choices[0]?.message?.content || "{}",
+    );
 
-    return NextResponse.json({ success: true, data });
+    // 4. SAVE TO SUPABASE CACHE (valid for 24 hours)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await supabaseAdmin.from("intelligence_cache").upsert({
+      id: cacheId,
+      category: "visa",
+      payload: parsedData,
+      expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: parsedData,
+      source: "live_ai_grounded",
+    });
   } catch (error: any) {
     console.error("Dynamic Visa API Error:", error);
     return NextResponse.json(
